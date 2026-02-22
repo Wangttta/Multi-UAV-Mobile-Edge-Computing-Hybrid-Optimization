@@ -1,12 +1,12 @@
 import numpy as np
 
 # Training Parameters
-MODEL: str = "maddpg"  # options: 'maddpg', 'matd3', 'mappo', 'masac', 'attention_<model>', 'random'
+MODEL: str = "attention_matd3"  # options: 'maddpg', 'matd3', 'mappo', 'masac', 'attention_<model>', 'random'
 SEED: int = 42  # random seed for reproducibility
 np.random.seed(SEED)  # set numpy random seed
 STEPS_PER_EPISODE: int = 1000  # total T
 LOG_FREQ: int = 10  # episodes
-IMG_FREQ: int = 100  # steps
+IMG_FREQ: int = 1000  # steps
 TEST_LOG_FREQ: int = 1  # episodes (for testing)
 TEST_IMG_FREQ: int = 100  # steps (for testing)
 
@@ -60,7 +60,7 @@ K_CPU: float = 1e-27  # CPU capacitance coefficient
 
 # Caching Parameters
 T_CACHE_UPDATE_INTERVAL: int = 50  # T_cache
-GDSF_SMOOTHING_FACTOR: float = 0.5  # beta^gdsf
+GDSF_SMOOTHING_FACTOR: float = 0.75  # beta^gdsf
 
 # Probabilistic Caching Parameters
 AVG_FILE_SIZE: float = float(np.mean(FILE_SIZES))
@@ -84,9 +84,9 @@ UE_STATIC_POWER: float = 0.05  # Idle power consumption in Watts
 # Model Parameters
 # Reward formula: reward = ALPHA_3*log(fairness) - ALPHA_1*log(latency) - ALPHA_2*log(energy) - ALPHA_4*log(1+offline_rate)
 # Then scaled by REWARD_SCALING_FACTOR. All log terms ∈ [0, log(max_value)] to keep rewards bounded.
-ALPHA_1 = 4.0  # weightage for latency (negative term, higher = stronger penalty for latency)
+ALPHA_1 = 1.0  # weightage for latency (negative term, higher = stronger penalty for latency)
 ALPHA_2 = 0.4  # weightage for energy (negative term, lower priority than latency)
-ALPHA_3 = 8.0  # weightage for fairness (positive term, encourage equal service)
+ALPHA_3 = 2.0  # weightage for fairness (positive term, encourage equal service)
 ALPHA_4 = 50.0  # weightage for offline rate (negative term, penalizes UEs running out of battery)
 REWARD_SCALING_FACTOR: float = 0.01  # scaling factor for rewards (prevents exploding values)
 

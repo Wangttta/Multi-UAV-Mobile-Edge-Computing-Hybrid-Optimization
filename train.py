@@ -3,7 +3,7 @@ from marl_models.buffer_and_helpers import ReplayBuffer, RolloutBuffer, Attentio
 from marl_models.utils import save_models
 from environment.env import Env
 from utils.logger import Logger, Log
-from utils.plot_snapshots import plot_snapshot
+# from utils.plot_snapshots import plot_snapshot  # snapshot plotting, comment if not needed
 
 # from utils.plot_snapshots import update_trajectories, reset_trajectories  # trajectory tracking, comment if not needed
 import config
@@ -36,11 +36,11 @@ def train_on_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: in
         rollout_fairness: float = 0.0
         rollout_offline_rate: float = 0.0
         # reset_trajectories(env)  # tracking code, comment if not needed
-        plot_snapshot(env, update, 0, logger.log_dir, "update", logger.timestamp, True)
+        # plot_snapshot(env, update, 0, logger.log_dir, "update", logger.timestamp, True)
 
         for step in range(1, config.PPO_ROLLOUT_LENGTH + 1):
-            if step % config.IMG_FREQ == 0:
-                plot_snapshot(env, update, step, logger.log_dir, "update", logger.timestamp)
+            # if step % config.IMG_FREQ == 0:
+            #     plot_snapshot(env, update, step, logger.log_dir, "update", logger.timestamp)
 
             obs_arr: np.ndarray = np.array(obs)
             actions, log_probs, values = model.get_action_and_value(obs_arr, state)
@@ -130,11 +130,11 @@ def train_off_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: i
         episode_fairness: float = 0.0
         episode_offline_rate: float = 0.0
         # reset_trajectories(env)  # tracking code, comment if not needed
-        plot_snapshot(env, episode, 0, logger.log_dir, "episode", logger.timestamp, True)
+        # plot_snapshot(env, episode, 0, logger.log_dir, "episode", logger.timestamp, True)
 
         for step in range(1, config.STEPS_PER_EPISODE + 1):
-            if step % config.IMG_FREQ == 0:
-                plot_snapshot(env, episode, step, logger.log_dir, "episode", logger.timestamp)
+            # if step % config.IMG_FREQ == 0:
+            #     plot_snapshot(env, episode, step, logger.log_dir, "episode", logger.timestamp)
 
             total_step_count += 1
             if total_step_count <= config.INITIAL_RANDOM_STEPS:
@@ -219,11 +219,11 @@ def train_random(env: Env, model: MARLModel, logger: Logger, num_episodes: int) 
         episode_fairness: float = 0.0
         episode_offline_rate: float = 0.0
         # reset_trajectories(env)  # tracking code, comment if not needed
-        plot_snapshot(env, episode, 0, logger.log_dir, "episode", logger.timestamp, True)
+        # plot_snapshot(env, episode, 0, logger.log_dir, "episode", logger.timestamp, True)
 
         for step in range(1, config.STEPS_PER_EPISODE + 1):
-            if step % config.IMG_FREQ == 0:
-                plot_snapshot(env, episode, step, logger.log_dir, "episode", logger.timestamp)
+            # if step % config.IMG_FREQ == 0:
+            #     plot_snapshot(env, episode, step, logger.log_dir, "episode", logger.timestamp)
 
             actions: np.ndarray = model.select_actions(obs, exploration=False)
             next_obs, rewards, (total_latency, total_energy, jfi, offline_rate) = env.step(actions)

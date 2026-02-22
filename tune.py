@@ -119,6 +119,48 @@ def run_tuning(args):
     print(f"📝 Episodes per trial: {args.episodes}")
     print(f"🔍 Trials: {args.trials}")
 
+    # Timestamp used for per-run / per-trial logging
+    run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Small JSON encoder to handle numpy types when saving trial summaries
+    def _numpy_encoder(obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, (np.int32, np.int64)):
+            return int(obj)
+        if isinstance(obj, (np.float32, np.float64)):
+            return float(obj)
+        raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
+
+    # Callback executed after each trial completes (Optuna calls this)
+    def _trial_logging_callback(study, trial):
+        trial_log_dir = f"tuning_logs/{config.MODEL}/trial_{trial.number}"
+        if not os.path.exists(trial_log_dir):
+            os.makedirs(trial_log_dir)
+
+        # Create a Logger for the trial and save current configs
+        trial_logger = Logger(trial_log_dir, run_timestamp)
+        try:
+            trial_logger.log_configs()
+        except Exception as e:
+            print(f"⚠️ Could not save configs for trial {trial.number}: {e}")
+
+        # Build trial summary and write to JSON
+        summary = {
+            "trial_number": trial.number,
+            "params": trial.params,
+            "value": None if trial.value is None else float(trial.value),
+            "best_value": None if study.best_value is None else float(study.best_value),
+            "best_params": study.best_params,
+        }
+
+        summary_path = os.path.join(trial_log_dir, f"trial_{trial.number}_summary.json")
+        try:
+            with open(summary_path, "w", encoding="utf-8") as sf:
+                json.dump(summary, sf, indent=4, default=_numpy_encoder)
+        except Exception as e:
+            print(f"⚠️ Could not write trial summary for trial {trial.number}: {e}")
+
     # Use MedianPruner for Early Stopping
     # It stops a trial if its intermediate result is worse than the median of previous trials
     pruner = optuna.pruners.MedianPruner(
@@ -136,7 +178,7 @@ def run_tuning(args):
     def objective_wrapper(trial):
         return objective(trial, args.stage, config.MODEL.lower(), args.episodes)
 
-    study.optimize(objective_wrapper, n_trials=args.trials)
+    study.optimize(objective_wrapper, n_trials=args.trials, callbacks=[_trial_logging_callback])
 
     print("\n🏆 Tuning Completed!")
     print(f"Best Trial Score: {study.best_value}")

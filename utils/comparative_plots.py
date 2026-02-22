@@ -28,7 +28,7 @@ class ComparativePlotter:
             "#e377c2",
             "#7f7f7f",
         ]
-        self.linestyles = ["-", "--", "-.", ":"]
+        self.linestyles = ["-"]
         self.data: Dict[str, Dict] = {}
 
     def load_run(self, log_dir: str, algorithm_name: str) -> bool:
