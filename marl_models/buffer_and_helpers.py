@@ -163,3 +163,19 @@ def layer_init(layer: nn.Linear, std: float = np.sqrt(2), bias_const: float = 0.
     if layer.bias is not None:
         nn.init.constant_(layer.bias, bias_const)
     return layer
+
+
+def get_state_dict(model):  # Helper to strip the compile wrapper
+    if hasattr(model, "_orig_mod"):
+        return model._orig_mod.state_dict()
+    return model.state_dict()
+
+
+def load_safe(model, state_dict):  # Helper to load into potentially compiled models
+    if hasattr(model, "_orig_mod"):  # If compiled, try loading into _orig_mod first
+        try:
+            model._orig_mod.load_state_dict(state_dict)
+            return
+        except Exception:
+            pass  # Fallback to loading directly
+    model.load_state_dict(state_dict)

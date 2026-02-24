@@ -1,10 +1,11 @@
 from marl_models.base_model import MARLModel, ExperienceBatch
 from marl_models.attention_matd3.agents import ActorNetwork, CriticNetwork
-from marl_models.buffer_and_helpers import soft_update, GaussianNoise
+from marl_models.buffer_and_helpers import soft_update, GaussianNoise, get_state_dict, load_safe
 import config
 import torch
 import torch.nn.functional as F
 import numpy as np
+from typing import cast
 import os
 
 
@@ -15,10 +16,15 @@ class AttentionMATD3(MARLModel):
         self.actors: list[ActorNetwork] = [ActorNetwork(obs_dim, action_dim).to(device) for _ in range(num_agents)]
         self.critics_1: list[CriticNetwork] = [CriticNetwork(obs_dim, action_dim).to(device) for _ in range(num_agents)]
         self.critics_2: list[CriticNetwork] = [CriticNetwork(obs_dim, action_dim).to(device) for _ in range(num_agents)]
+        
         self.target_actors: list[ActorNetwork] = [ActorNetwork(obs_dim, action_dim).to(device) for _ in range(num_agents)]
         self.target_critics_1: list[CriticNetwork] = [CriticNetwork(obs_dim, action_dim).to(device) for _ in range(num_agents)]
         self.target_critics_2: list[CriticNetwork] = [CriticNetwork(obs_dim, action_dim).to(device) for _ in range(num_agents)]
         self._init_target_networks()
+
+        self.actors = [cast(ActorNetwork, torch.compile(actor)) for actor in self.actors]
+        self.critics_1 = [cast(CriticNetwork, torch.compile(critic)) for critic in self.critics_1]
+        self.critics_2 = [cast(CriticNetwork, torch.compile(critic)) for critic in self.critics_2]
 
         self.actor_optimizers: list[torch.optim.Adam] = [torch.optim.Adam(actor.parameters(), lr=config.ACTOR_LR) for actor in self.actors]
         self.critic_1_optimizers: list[torch.optim.Adam] = [torch.optim.Adam(critic.parameters(), lr=config.CRITIC_LR) for critic in self.critics_1]
@@ -76,15 +82,14 @@ class AttentionMATD3(MARLModel):
 
             # Update both critic networks
             current_q1: torch.Tensor = self.critics_1[agent_idx](obs_tensor, actions_tensor, agent_idx)
-            current_q2: torch.Tensor = self.critics_2[agent_idx](obs_tensor, actions_tensor, agent_idx)
             critic_1_loss: torch.Tensor = F.mse_loss(current_q1, y)
-            critic_2_loss: torch.Tensor = F.mse_loss(current_q2, y)
-
             self.critic_1_optimizers[agent_idx].zero_grad()
             critic_1_loss.backward()
             torch.nn.utils.clip_grad_norm_(self.critics_1[agent_idx].parameters(), config.MAX_GRAD_NORM)
             self.critic_1_optimizers[agent_idx].step()
 
+            current_q2: torch.Tensor = self.critics_2[agent_idx](obs_tensor, actions_tensor, agent_idx)
+            critic_2_loss: torch.Tensor = F.mse_loss(current_q2, y)
             self.critic_2_optimizers[agent_idx].zero_grad()
             critic_2_loss.backward()
             torch.nn.utils.clip_grad_norm_(self.critics_2[agent_idx].parameters(), config.MAX_GRAD_NORM)
@@ -137,9 +142,9 @@ class AttentionMATD3(MARLModel):
         for i in range(self.num_agents):
             torch.save(
                 {
-                    "actor": self.actors[i].state_dict(),
-                    "critic_1": self.critics_1[i].state_dict(),
-                    "critic_2": self.critics_2[i].state_dict(),
+                    "actor": get_state_dict(self.actors[i]),
+                    "critic_1": get_state_dict(self.critics_1[i]),
+                    "critic_2": get_state_dict(self.critics_2[i]),
                     "target_actor": self.target_actors[i].state_dict(),
                     "target_critic_1": self.target_critics_1[i].state_dict(),
                     "target_critic_2": self.target_critics_2[i].state_dict(),
@@ -162,9 +167,9 @@ class AttentionMATD3(MARLModel):
             if not os.path.exists(agent_path):
                 raise FileNotFoundError(f"❌ Model file not found: {agent_path}")
             checkpoint: dict = torch.load(agent_path, map_location=self.device, weights_only=True)
-            self.actors[i].load_state_dict(checkpoint["actor"])
-            self.critics_1[i].load_state_dict(checkpoint["critic_1"])
-            self.critics_2[i].load_state_dict(checkpoint["critic_2"])
+            load_safe(self.actors[i], checkpoint["actor"])
+            load_safe(self.critics_1[i], checkpoint["critic_1"])
+            load_safe(self.critics_2[i], checkpoint["critic_2"])
             self.target_actors[i].load_state_dict(checkpoint["target_actor"])
             self.target_critics_1[i].load_state_dict(checkpoint["target_critic_1"])
             self.target_critics_2[i].load_state_dict(checkpoint["target_critic_2"])

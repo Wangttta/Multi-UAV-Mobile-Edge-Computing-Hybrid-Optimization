@@ -60,11 +60,26 @@ def objective(trial: optuna.Trial, stage: int, model_name: str, num_episodes: in
         #       config.ALPHA_1 = best_params["alpha_1"]
         #       config.ALPHA_2 = best_params["alpha_2"]
         #       ... (set all ALPHA and GDSF values)
-        config.ACTOR_LR = trial.suggest_float("actor_lr", 1e-5, 1e-3, log=True)
-        config.CRITIC_LR = trial.suggest_float("critic_lr", 1e-5, 1e-3, log=True)
-        config.PPO_BATCH_SIZE = trial.suggest_categorical("batch_size", [32, 64, 128])
-        config.MLP_HIDDEN_DIM = trial.suggest_categorical("hidden_dim", [128, 256, 512])
-        config.DISCOUNT_FACTOR = trial.suggest_float("gamma", 0.90, 0.99, step=0.01)
+
+        # --- Core Solver Parameters (All Algos) ---
+        config.ACTOR_LR = trial.suggest_float("actor_lr", 1e-5, 5e-3, log=True)
+        config.CRITIC_LR = trial.suggest_float("critic_lr", 1e-5, 5e-3, log=True)
+        config.MLP_HIDDEN_DIM = trial.suggest_categorical("hidden_dim", [64, 128, 256])
+        config.DISCOUNT_FACTOR = trial.suggest_float("gamma", 0.95, 0.995)
+
+        # --- Off-Policy Specific (MATD3, MASAC, MADDPG) ---
+        if config.MODEL in ["matd3", "masac", "maddpg", "attention_matd3", "attention_masac", "attention_maddpg"]:
+            config.REPLAY_BATCH_SIZE = trial.suggest_categorical("batch_size", [64, 128, 256])
+            config.UPDATE_FACTOR = trial.suggest_float("tau", 0.005, 0.05)
+            
+            if config.MODEL in ["matd3", "attention_matd3"]:
+                config.TARGET_POLICY_NOISE = trial.suggest_float("target_noise", 0.1, 0.3)
+
+        # --- On-Policy Specific (MAPPO) ---
+        elif config.MODEL in ["mappo", "attention_mappo"]:
+            config.PPO_BATCH_SIZE = trial.suggest_categorical("batch_size", [64, 128, 256])
+            config.PPO_CLIP_EPS = trial.suggest_float("clip_eps", 0.1, 0.3)
+            config.PPO_ENTROPY_COEF = trial.suggest_float("entropy_coef", 0.001, 0.05, log=True)
     
     # --- STAGE 3: Attention Architecture (for attention-based models) ---
     elif stage == 3:

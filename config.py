@@ -11,11 +11,11 @@ TEST_LOG_FREQ: int = 1  # episodes (for testing)
 TEST_IMG_FREQ: int = 100  # steps (for testing)
 
 # Simulation Parameters
-MBS_POS: np.ndarray = np.array([500.0, 500.0, 30.0])  # (X_mbs, Y_mbs, Z_mbs) in meters
-NUM_UAVS: int = 10  # U
-NUM_UES: int = 200  # M
-AREA_WIDTH: int = 1000  # X_max in meters
-AREA_HEIGHT: int = 1000  # Y_max in meters
+MBS_POS: np.ndarray = np.array([350.0, 350.0, 30.0])  # (X_mbs, Y_mbs, Z_mbs) in meters
+NUM_UAVS: int = 5  # U
+NUM_UES: int = 100  # M
+AREA_WIDTH: int = 700  # X_max in meters
+AREA_HEIGHT: int = 700  # Y_max in meters
 TIME_SLOT_DURATION: float = 1.0  # tau in seconds
 UE_MAX_DIST: float = 15.0  # d_max^UE in meters
 UE_MAX_WAIT_TIME: int = 10  # in time slots
@@ -48,8 +48,8 @@ POWER_MOVE: float = 100.0  # P_move in Watts
 POWER_HOVER: float = 80.0  # P_hover in Watts
 
 # Request Parameters
-NUM_SERVICES: int = 50  # S
-NUM_CONTENTS: int = 100  # K
+NUM_SERVICES: int = 25  # S
+NUM_CONTENTS: int = 50  # K
 NUM_FILES: int = NUM_SERVICES + NUM_CONTENTS  # S + K
 CPU_CYCLES_PER_BYTE: np.ndarray = np.random.randint(2000, 4000, size=NUM_SERVICES)  # omega_s_m
 FILE_SIZES: np.ndarray = np.random.randint(10**6, 5 * 10**6, size=NUM_FILES).astype(np.int64)  # in bytes
@@ -95,7 +95,7 @@ UE_OBS_DIM: int = 2 + 3 + 1  # pos (2) + request_tuple (3) + battery level (1)
 NEIGHBOR_OBS_DIM: int = 2  # pos (2)
 OBS_DIM_SINGLE: int = SELF_OBS_DIM + (MAX_UAV_NEIGHBORS * NEIGHBOR_OBS_DIM) + (MAX_ASSOCIATED_UES * UE_OBS_DIM)
 ACTION_DIM: int = 2  # angle, distance from [-1, 1]
-MLP_HIDDEN_DIM: int = 256
+MLP_HIDDEN_DIM: int = 128
 
 ACTOR_LR: float = 3e-4
 CRITIC_LR: float = 3e-4
