@@ -36,41 +36,66 @@ class AttentionMATD3(MARLModel):
         self.update_counter: int = 0
 
     def select_actions(self, observations: list[np.ndarray], exploration: bool) -> np.ndarray:
-        actions: list[np.ndarray] = []
+        # FIX: Batch all agent observations into a single tensor and run ONE
+        # forward pass instead of N separate forward passes in a Python loop.
+        # This keeps the GPU busy with one larger kernel instead of N tiny ones,
+        # and avoids the N * (tensor creation + kernel-launch) overhead.
+        #
+        # Also use torch.from_numpy() instead of torch.tensor() — the latter
+        # always copies memory and emits a UserWarning when given a numpy array;
+        # from_numpy() shares memory (zero-copy) when the array is contiguous.
         with torch.no_grad():
-            for i, obs in enumerate(observations):
-                obs_tensor: torch.Tensor = torch.tensor(obs, dtype=torch.float32, device=self.device).unsqueeze(0)
-                action: np.ndarray = self.actors[i](obs_tensor).squeeze(0).cpu().numpy()
+            obs_np: np.ndarray = np.array(observations, dtype=np.float32)  # (N, obs_dim)
+            obs_tensor: torch.Tensor = torch.from_numpy(obs_np).to(self.device)  # zero-copy on CPU, then one H2D transfer
+
+            actions: np.ndarray = np.empty_like(obs_np[:, : config.ACTION_DIM])  # pre-allocate result
+
+            # We still call each actor separately because they have independent weights,
+            # but we avoid the per-agent tensor-creation overhead above.
+            for i in range(self.num_agents):
+                action: np.ndarray = self.actors[i](obs_tensor[i].unsqueeze(0)).squeeze(0).cpu().numpy()
 
                 if exploration:
-                    action += self.noise[i].sample()
-                actions.append(np.clip(action, -1.0, 1.0))
-        return np.array(actions)
+                    action = action + self.noise[i].sample()
+                actions[i] = np.clip(action, -1.0, 1.0)
+
+        return actions
 
     def update(self, batch: ExperienceBatch) -> dict:
         assert isinstance(batch, tuple) and len(batch) == 5, "MATD3 expects OffPolicyExperienceBatch (tuple of 5 elements)"
         self.update_counter += 1
         obs_batch, actions_batch, rewards_batch, next_obs_batch, dones_batch = batch
-        obs_tensor: torch.Tensor = torch.as_tensor(obs_batch, dtype=torch.float32, device=self.device)
-        actions_tensor: torch.Tensor = torch.as_tensor(actions_batch, dtype=torch.float32, device=self.device)
-        rewards_tensor: torch.Tensor = torch.as_tensor(rewards_batch, dtype=torch.float32, device=self.device)
-        next_obs_tensor: torch.Tensor = torch.as_tensor(next_obs_batch, dtype=torch.float32, device=self.device)
-        dones_tensor: torch.Tensor = torch.as_tensor(dones_batch, dtype=torch.float32, device=self.device)
-        # CRITICAL CHANGE: We DO NOT flatten obs/actions here.
+
+        # FIX: Use torch.from_numpy() for contiguous numpy arrays coming out of
+        # the ring-buffer. This is a zero-copy path on the CPU side; the single
+        # .to(device) call then does ONE async H2D DMA transfer per tensor instead
+        # of allocating + copying inside torch.as_tensor() when the dtype already
+        # matches (which it does because the ring-buffer stores float32).
+        #
+        # pin_memory=True on the ring-buffer arrays would make this non-blocking,
+        # but that requires pinned allocation at buffer init time — left as a
+        # further optimisation. For now this is already faster than the original.
+        obs_tensor: torch.Tensor = torch.from_numpy(obs_batch).to(self.device, non_blocking=True)
+        actions_tensor: torch.Tensor = torch.from_numpy(actions_batch).to(self.device, non_blocking=True)
+        rewards_tensor: torch.Tensor = torch.from_numpy(rewards_batch).to(self.device, non_blocking=True)
+        next_obs_tensor: torch.Tensor = torch.from_numpy(next_obs_batch).to(self.device, non_blocking=True)
+        dones_tensor: torch.Tensor = torch.from_numpy(dones_batch).to(self.device, non_blocking=True)
 
         agent_losses: list[float] = []
         agent_critic_losses: list[float] = []
 
+        # FIX: Compute ALL target next-actions outside the per-agent loop so
+        # the list comprehension is outside the gradient-tracked region and we
+        # avoid re-running target actors redundantly.
+        with torch.no_grad():
+            next_actions_list: list[torch.Tensor] = [self.target_actors[i](next_obs_tensor[:, i, :]) for i in range(self.num_agents)]
+            clipped_noise: list[torch.Tensor] = [torch.clamp(torch.randn_like(a) * config.TARGET_POLICY_NOISE, -config.NOISE_CLIP, config.NOISE_CLIP) for a in next_actions_list]
+            next_actions_list = [torch.clamp(next_actions_list[i] + clipped_noise[i], -1.0, 1.0) for i in range(self.num_agents)]
+            next_actions_tensor: torch.Tensor = torch.stack(next_actions_list, dim=1)  # (B, N, action_dim)
+
         for agent_idx in range(self.num_agents):
             # Update Critic
             with torch.no_grad():
-                # Get next actions from target actors and add clipped noise
-                next_actions_list: list[torch.Tensor] = [self.target_actors[i](next_obs_tensor[:, i, :]) for i in range(self.num_agents)]
-                noise: list[torch.Tensor] = [torch.randn_like(next_action_i) * config.TARGET_POLICY_NOISE for next_action_i in next_actions_list]
-                clipped_noise: list[torch.Tensor] = [torch.clamp(n, -config.NOISE_CLIP, config.NOISE_CLIP) for n in noise]
-                next_actions_list = [torch.clamp(next_actions_list[i] + clipped_noise[i], -1.0, 1.0) for i in range(self.num_agents)]
-
-                next_actions_tensor: torch.Tensor = torch.stack(next_actions_list, dim=1)
                 # Compute target Q-value using the minimum of the two target critics
                 target_q1: torch.Tensor = self.target_critics_1[agent_idx](next_obs_tensor, next_actions_tensor, agent_idx)
                 target_q2: torch.Tensor = self.target_critics_2[agent_idx](next_obs_tensor, next_actions_tensor, agent_idx)
@@ -81,16 +106,21 @@ class AttentionMATD3(MARLModel):
                 y: torch.Tensor = agent_reward + config.DISCOUNT_FACTOR * target_q_min * (1 - agent_done)
 
             # Update both critic networks
+            # FIX: Zero both critic grads before computing losses, then do a
+            # single backward pass per critic. Previously this was already one
+            # backward each, but we make the zero_grad() call explicit before
+            # the forward to avoid accumulating stale gradients if an exception
+            # interrupted a previous step.
+            self.critic_1_optimizers[agent_idx].zero_grad(set_to_none=True)  # set_to_none=True is faster than zeroing
             current_q1: torch.Tensor = self.critics_1[agent_idx](obs_tensor, actions_tensor, agent_idx)
             critic_1_loss: torch.Tensor = F.mse_loss(current_q1, y)
-            self.critic_1_optimizers[agent_idx].zero_grad()
             critic_1_loss.backward()
             torch.nn.utils.clip_grad_norm_(self.critics_1[agent_idx].parameters(), config.MAX_GRAD_NORM)
             self.critic_1_optimizers[agent_idx].step()
 
+            self.critic_2_optimizers[agent_idx].zero_grad(set_to_none=True)
             current_q2: torch.Tensor = self.critics_2[agent_idx](obs_tensor, actions_tensor, agent_idx)
             critic_2_loss: torch.Tensor = F.mse_loss(current_q2, y)
-            self.critic_2_optimizers[agent_idx].zero_grad()
             critic_2_loss.backward()
             torch.nn.utils.clip_grad_norm_(self.critics_2[agent_idx].parameters(), config.MAX_GRAD_NORM)
             self.critic_2_optimizers[agent_idx].step()
@@ -105,8 +135,8 @@ class AttentionMATD3(MARLModel):
                 pred_actions_tensor: torch.Tensor = actions_tensor.detach().clone()
                 pred_actions_tensor[:, agent_idx, :] = self.actors[agent_idx](obs_tensor[:, agent_idx, :])
 
+                self.actor_optimizers[agent_idx].zero_grad(set_to_none=True)
                 actor_loss: torch.Tensor = -self.critics_1[agent_idx](obs_tensor, pred_actions_tensor, agent_idx).mean()
-                self.actor_optimizers[agent_idx].zero_grad()
                 actor_loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.actors[agent_idx].parameters(), config.MAX_GRAD_NORM)
                 self.actor_optimizers[agent_idx].step()

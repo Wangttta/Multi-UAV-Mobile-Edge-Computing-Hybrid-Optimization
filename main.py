@@ -13,6 +13,7 @@ import warnings
 import os
 from datetime import datetime
 
+torch.set_float32_matmul_precision('high')
 
 def start_training(args: argparse.Namespace):
     timestamp: str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

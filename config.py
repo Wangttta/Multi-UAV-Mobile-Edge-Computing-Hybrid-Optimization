@@ -97,10 +97,10 @@ OBS_DIM_SINGLE: int = SELF_OBS_DIM + (MAX_UAV_NEIGHBORS * NEIGHBOR_OBS_DIM) + (M
 ACTION_DIM: int = 2  # angle, distance from [-1, 1]
 MLP_HIDDEN_DIM: int = 128
 
-ACTOR_LR: float = 3e-4
-CRITIC_LR: float = 3e-4
-DISCOUNT_FACTOR: float = 0.99  # gamma
-UPDATE_FACTOR: float = 0.01  # tau
+ACTOR_LR: float = 9e-4
+CRITIC_LR: float = 8e-4
+DISCOUNT_FACTOR: float = 0.96  # gamma
+UPDATE_FACTOR: float = 0.012  # tau
 MAX_GRAD_NORM: float = 0.5  # maximum norm for gradient clipping to prevent exploding gradients
 LOG_STD_MAX: float = 2  # maximum log standard deviation for stochastic policies
 LOG_STD_MIN: float = -20  # minimum log standard deviation for stochastic policies
@@ -108,7 +108,7 @@ EPSILON: float = 1e-9  # small value to prevent division by zero
 
 # Off-policy algorithm hyperparameters
 REPLAY_BUFFER_SIZE: int = 10**6  # B
-REPLAY_BATCH_SIZE: int = 256  # minibatch size
+REPLAY_BATCH_SIZE: int = 128  # minibatch size
 INITIAL_RANDOM_STEPS: int = 5000  # steps of random actions for exploration
 LEARN_FREQ: int = 10  # steps to learn after
 
@@ -119,7 +119,7 @@ NOISE_DECAY_RATE: float = 0.995
 
 # MATD3 Specific Hyperparameters
 POLICY_UPDATE_FREQ: int = 2  # delayed policy update frequency
-TARGET_POLICY_NOISE: float = 0.2  # standard deviation of target policy smoothing noise.
+TARGET_POLICY_NOISE: float = 0.25  # standard deviation of target policy smoothing noise.
 NOISE_CLIP: float = 0.5  # range to clip target policy smoothing noise
 
 # MAPPO Specific Hyperparameters
