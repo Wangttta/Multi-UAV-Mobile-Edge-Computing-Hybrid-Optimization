@@ -53,9 +53,9 @@ def plot_snapshot(env: Env, progress_step: int, step: int, save_dir: str, name: 
     ax.set_ylabel("Y coordinate (m)")
 
     # Plot UEs
-    service_ues_pos: np.ndarray = np.array([ue.pos for ue in env.ues if ue.current_request[0] == 0])
-    content_ues_pos: np.ndarray = np.array([ue.pos for ue in env.ues if ue.current_request[0] == 1])
-    energy_ues_pos: np.ndarray = np.array([ue.pos for ue in env.ues if ue.current_request[0] == 2])
+    service_ues_pos: np.ndarray = np.array([ue.pos for ue in env.ues if ue.current_request[0] == 0], dtype=np.float32)
+    content_ues_pos: np.ndarray = np.array([ue.pos for ue in env.ues if ue.current_request[0] == 1], dtype=np.float32)
+    energy_ues_pos: np.ndarray = np.array([ue.pos for ue in env.ues if ue.current_request[0] == 2], dtype=np.float32)
 
     if service_ues_pos.size > 0:
         ax.scatter(service_ues_pos[:, 0], service_ues_pos[:, 1], c="blue", marker=".", alpha=0.6, label="UE (Service Req)")

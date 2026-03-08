@@ -105,7 +105,7 @@ def objective(trial: optuna.Trial, stage: int, model_name: str, num_episodes: in
 
     # Minimal Logger for Tuning (Prevent cluttering disk with 100s of logs)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    tuning_log_dir = f"tuning_logs/{model_name}/trial_{trial.number}"
+    tuning_log_dir = f"tuning_logs/{model_name}/stage_{stage}/trial_{trial.number}"
     if not os.path.exists(tuning_log_dir):
         os.makedirs(tuning_log_dir)
     logger = Logger(tuning_log_dir, timestamp)
@@ -149,7 +149,7 @@ def run_tuning(args):
 
     # Callback executed after each trial completes (Optuna calls this)
     def _trial_logging_callback(study, trial):
-        trial_log_dir = f"tuning_logs/{config.MODEL}/trial_{trial.number}"
+        trial_log_dir = f"tuning_logs/{config.MODEL}/stage_{args.stage}/trial_{trial.number}"
         if not os.path.exists(trial_log_dir):
             os.makedirs(trial_log_dir)
 
@@ -202,7 +202,7 @@ def run_tuning(args):
     print(json.dumps(study.best_params, indent=4))
 
     # Save best params and study summary
-    save_path = f"tuning_logs/{config.MODEL}/stage_{args.stage}.json"
+    save_path = f"tuning_logs/{config.MODEL}/stage_{args.stage}/stage_{args.stage}.json"
     if not os.path.exists(os.path.dirname(save_path)):
         os.makedirs(os.path.dirname(save_path))
 

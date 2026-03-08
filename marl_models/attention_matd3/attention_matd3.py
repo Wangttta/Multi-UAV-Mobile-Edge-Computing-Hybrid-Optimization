@@ -35,7 +35,7 @@ class AttentionMATD3(MARLModel):
         # Delayed Updates Counter
         self.update_counter: int = 0
 
-    def select_actions(self, observations: list[np.ndarray], exploration: bool) -> np.ndarray:
+    def select_actions(self, obs_arr: np.ndarray, exploration: bool) -> np.ndarray:
         # FIX: Batch all agent observations into a single tensor and run ONE
         # forward pass instead of N separate forward passes in a Python loop.
         # This keeps the GPU busy with one larger kernel instead of N tiny ones,
@@ -45,10 +45,9 @@ class AttentionMATD3(MARLModel):
         # always copies memory and emits a UserWarning when given a numpy array;
         # from_numpy() shares memory (zero-copy) when the array is contiguous.
         with torch.no_grad():
-            obs_np: np.ndarray = np.array(observations, dtype=np.float32)  # (N, obs_dim)
-            obs_tensor: torch.Tensor = torch.from_numpy(obs_np).to(self.device)  # zero-copy on CPU, then one H2D transfer
+            obs_tensor: torch.Tensor = torch.from_numpy(obs_arr).to(self.device)  # zero-copy on CPU, then one H2D transfer
 
-            actions: np.ndarray = np.empty_like(obs_np[:, : config.ACTION_DIM])  # pre-allocate result
+            actions: np.ndarray = np.empty_like(obs_arr[:, : config.ACTION_DIM])  # pre-allocate result
 
             # We still call each actor separately because they have independent weights,
             # but we avoid the per-agent tensor-creation overhead above.

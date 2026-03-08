@@ -11,7 +11,7 @@ TEST_LOG_FREQ: int = 1  # episodes (for testing)
 TEST_IMG_FREQ: int = 100  # steps (for testing)
 
 # Simulation Parameters
-MBS_POS: np.ndarray = np.array([350.0, 350.0, 30.0])  # (X_mbs, Y_mbs, Z_mbs) in meters
+MBS_POS: np.ndarray = np.array([350.0, 350.0, 30.0], dtype=np.float32)  # (X_mbs, Y_mbs, Z_mbs) in meters
 NUM_UAVS: int = 5  # U
 NUM_UES: int = 100  # M
 AREA_WIDTH: int = 700  # X_max in meters

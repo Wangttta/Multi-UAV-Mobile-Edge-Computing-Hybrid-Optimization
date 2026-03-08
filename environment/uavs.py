@@ -17,7 +17,7 @@ def _get_belief_probability(file_id: int, neighbor_id: int) -> float:
 def _get_computing_latency_and_energy(uav: UAV, cpu_cycles: float) -> tuple[float, float]:
     """Calculate computing latency and energy for a UAV processing request."""
     assert uav._current_service_request_count > 0
-    computing_capacity_per_request: float = config.UAV_COMPUTING_CAPACITY[uav.id] / uav._current_service_request_count
+    computing_capacity_per_request: float = (config.UAV_COMPUTING_CAPACITY[uav.id] / uav._current_service_request_count)
     latency: float = cpu_cycles / computing_capacity_per_request
     energy: float = config.K_CPU * cpu_cycles * (computing_capacity_per_request**2)
     return latency, energy
@@ -35,7 +35,7 @@ def _try_add_file_to_cache(uav: UAV, file_id: int) -> None:
 class UAV:
     def __init__(self, uav_id: int) -> None:
         self.id: int = uav_id
-        self.pos: np.ndarray = np.array([np.random.uniform(0, config.AREA_WIDTH), np.random.uniform(0, config.AREA_HEIGHT), config.UAV_ALTITUDE])
+        self.pos: np.ndarray = np.array([np.random.uniform(0, config.AREA_WIDTH), np.random.uniform(0, config.AREA_HEIGHT), config.UAV_ALTITUDE], dtype=np.float32)
 
         self._dist_moved: float = 0.0  # Distance moved in the current time slot
         self._current_covered_ues: list[UE] = []
@@ -48,8 +48,8 @@ class UAV:
         # Cache and request tracking
         self.cache: np.ndarray = np.zeros(config.NUM_FILES, dtype=bool)
         self._working_cache: np.ndarray = np.zeros(config.NUM_FILES, dtype=bool)
-        self._freq_counts: np.ndarray = np.zeros(config.NUM_FILES)
-        self._ema_scores: np.ndarray = np.zeros(config.NUM_FILES)
+        self._freq_counts: np.ndarray = np.zeros(config.NUM_FILES, dtype=np.float32)
+        self._ema_scores: np.ndarray = np.zeros(config.NUM_FILES, dtype=np.float32)
 
         self._uav_mbs_rate: float = 0.0
 
@@ -70,7 +70,7 @@ class UAV:
         self._current_covered_ues = []
         self._neighbors = []
         self._current_service_request_count = 0
-        self._freq_counts = np.zeros(config.NUM_FILES)
+        self._freq_counts = np.zeros(config.NUM_FILES, dtype=np.float32)
         self._energy_current_slot = 0.0
         self.collision_violation = False
         self.boundary_violation = False
@@ -115,7 +115,7 @@ class UAV:
             best_target_idx, best_target_uav = self._decide_offloading_target(ue.current_request, ue_uav_rate)
 
             self._freq_counts[req_id] += 1  # I got a request for this file
-            if best_target_idx == 1 and best_target_uav is not None:  # Request also seen by collaborating UAV
+            if (best_target_idx == 1 and best_target_uav is not None):  # Request also seen by collaborating UAV
                 best_target_uav._freq_counts[req_id] += 1
 
             if req_type == 0:
@@ -136,18 +136,18 @@ class UAV:
         """Returns (target_idx, target_uav_obj); Id: 0 = Local, 1 = Collaborating UAV, 2 = MBS"""
         req_type, req_size, req_id = current_req
         file_size: int = config.FILE_SIZES[req_id]
-        cpu_cycles: float = float(config.CPU_CYCLES_PER_BYTE[req_id]) * float(req_size) if req_type == 0 else -1.0
+        cpu_cycles: float = (float(config.CPU_CYCLES_PER_BYTE[req_id]) * float(req_size) if req_type == 0 else -1.0)
 
         # Associated UAV (Local) Expected Latency
         p_local: float = 1.0 if self.cache[req_id] else 0.0
         ue_uav_upload_latency: float = req_size / ue_uav_rate  # For service
         ue_uav_download_latency: float = file_size / ue_uav_rate  # For content
         exp_fetch_latency: float = (1.0 - p_local) * (file_size / self._uav_mbs_rate)  # For both
-        exp_local_latency: float = exp_fetch_latency + ue_uav_download_latency  # For content
+        exp_local_latency: float = (exp_fetch_latency + ue_uav_download_latency)  # For content
         if req_type == 0:  # Service
             assert self._current_service_request_count > 0
             est_comp_latency: float = cpu_cycles / (config.UAV_COMPUTING_CAPACITY[self.id] / self._current_service_request_count)
-            exp_local_latency = ue_uav_upload_latency + exp_fetch_latency + est_comp_latency  # Overwrite for service
+            exp_local_latency = (ue_uav_upload_latency + exp_fetch_latency + est_comp_latency)  # Overwrite for service
 
         best_exp_latency: float = exp_local_latency
         best_target_idx: int = 0
@@ -155,10 +155,10 @@ class UAV:
 
         # MBS Offloading Expected Latency
         uav_mbs_download_latency: float = file_size / self._uav_mbs_rate
-        exp_mbs_latency: float = uav_mbs_download_latency + ue_uav_download_latency  # For content
+        exp_mbs_latency: float = (uav_mbs_download_latency + ue_uav_download_latency)  # For content
         if req_type == 0:
             uav_mbs_upload_latency: float = req_size / self._uav_mbs_rate
-            exp_mbs_latency = ue_uav_upload_latency + uav_mbs_upload_latency  # Overwrite for service
+            exp_mbs_latency = (ue_uav_upload_latency + uav_mbs_upload_latency)  # Overwrite for service
 
         if exp_mbs_latency < best_exp_latency:
             best_exp_latency = exp_mbs_latency
@@ -172,14 +172,14 @@ class UAV:
             uav_mbs_rate: float = comms.calculate_uav_mbs_rate(comms.calculate_channel_gain(neighbor.pos, config.MBS_POS))
             uav_uav_download_latency: float = file_size / uav_uav_rate
             exp_neighbor_fetch_latency: float = (1.0 - belief_prob) * (file_size / uav_mbs_rate)  # For both
-            exp_neighbor_latency: float = exp_neighbor_fetch_latency + uav_uav_download_latency + ue_uav_download_latency  # For content
+            exp_neighbor_latency: float = (exp_neighbor_fetch_latency + uav_uav_download_latency + ue_uav_download_latency)  # For content
             if req_type == 0:  # Service
                 # Neighbor Load: They broadcasted 'initial_load'. We add +1 because "If I come, I add to the pile."
                 neigh_load: int = neighbor._current_service_request_count + 1
                 assert neigh_load > 0
                 est_comp_latency: float = cpu_cycles / (config.UAV_COMPUTING_CAPACITY[neighbor.id] / neigh_load)
                 uav_uav_upload_latency: float = req_size / uav_uav_rate
-                exp_neighbor_latency = ue_uav_upload_latency + uav_uav_upload_latency + exp_neighbor_fetch_latency + est_comp_latency  # Overwrite for service
+                exp_neighbor_latency = (ue_uav_upload_latency + uav_uav_upload_latency + exp_neighbor_fetch_latency + est_comp_latency)  # Overwrite for service
 
             if exp_neighbor_latency < best_exp_latency:
                 best_exp_latency = exp_neighbor_latency
@@ -204,7 +204,7 @@ class UAV:
                 _try_add_file_to_cache(self, req_id)
 
             comp_latency, comp_energy = _get_computing_latency_and_energy(self, cpu_cycles)
-            ue.latency_current_request = ue_uav_upload_latency + fetch_latency + comp_latency
+            ue.latency_current_request = (ue_uav_upload_latency + fetch_latency + comp_latency)
             self._energy_current_slot += comp_energy
 
         elif target_idx == 1:  # Collaborating UAV
@@ -219,7 +219,7 @@ class UAV:
                 _try_add_file_to_cache(target_uav, req_id)
 
             comp_latency, comp_energy = _get_computing_latency_and_energy(target_uav, cpu_cycles)
-            ue.latency_current_request = ue_uav_upload_latency + uav_uav_upload_latency + fetch_latency + comp_latency
+            ue.latency_current_request = (ue_uav_upload_latency + uav_uav_upload_latency + fetch_latency + comp_latency)
             target_uav._energy_current_slot += comp_energy
             _try_add_file_to_cache(self, req_id)  # Since it was a miss, try to add to associated UAV's cache as well in background
 

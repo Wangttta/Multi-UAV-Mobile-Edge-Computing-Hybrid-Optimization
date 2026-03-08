@@ -12,35 +12,20 @@ from collections.abc import Generator
 # A numpy ring-buffer gives O(1) indexing and enables vectorised batch slicing.
 class ReplayBuffer:
     def __init__(self, max_size: int) -> None:
-        self.max_size = max_size
-        self.ptr = 0  # Points to next write position
-        self.size = 0  # Current number of valid entries
+        self.max_size: int = max_size
+        self.ptr: int = 0  # Points to next write position
+        self.size: int = 0  # Current number of valid entries
 
-        # Pre-allocate numpy arrays. Shapes are filled on first `add()` call
-        # once we know the obs/action dims, so we use None until then.
-        self._obs: np.ndarray | None = None
-        self._actions: np.ndarray | None = None
-        self._rewards: np.ndarray | None = None
-        self._next_obs: np.ndarray | None = None
-        self._dones: np.ndarray | None = None
+        # Pre-allocate numpy arrays.
+        self._obs: np.ndarray = np.zeros((self.max_size, config.NUM_UAVS, config.OBS_DIM_SINGLE), dtype=np.float32)  # Shape: (max_size, num_uavs, obs_dim)
+        self._next_obs: np.ndarray = np.zeros((self.max_size, config.NUM_UAVS, config.OBS_DIM_SINGLE), dtype=np.float32)
+        self._actions: np.ndarray = np.zeros((self.max_size, config.NUM_UAVS, config.ACTION_DIM), dtype=np.float32)
+        self._rewards: np.ndarray = np.zeros((self.max_size, config.NUM_UAVS), dtype=np.float32)
+        self._dones: np.ndarray = np.zeros((self.max_size, config.NUM_UAVS), dtype=np.float32)
 
-    def _init_arrays(self, obs: np.ndarray, actions: np.ndarray, rewards: np.ndarray) -> None:
-        """Lazily allocate arrays on first call so we don't need to hardcode dims."""
-        n = self.max_size
-        self._obs = np.zeros((n, *obs.shape), dtype=np.float32)
-        self._actions = np.zeros((n, *actions.shape), dtype=np.float32)
-        self._rewards = np.zeros((n, *rewards.shape), dtype=np.float32)
-        self._next_obs = np.zeros((n, *obs.shape), dtype=np.float32)
-        self._dones = np.zeros((n, config.NUM_UAVS), dtype=np.float32)
-
-    def add(self, obs: list[np.ndarray], actions: np.ndarray, rewards: list[float], next_obs: list[np.ndarray], done: bool) -> None:
-        obs_arr = np.array(obs, dtype=np.float32)
-        next_obs_arr = np.array(next_obs, dtype=np.float32)
-        rewards_arr = np.array(rewards, dtype=np.float32)
-        dones_arr = np.full(config.NUM_UAVS, float(done), dtype=np.float32)
-
-        if self._obs is None:
-            self._init_arrays(obs_arr, actions, rewards_arr)
+    def add(self, obs_arr: np.ndarray, actions: np.ndarray, rewards: list[float], next_obs_arr: np.ndarray, done: bool) -> None:
+        rewards_arr: np.ndarray = np.array(rewards, dtype=np.float32)
+        dones_arr: np.ndarray = np.full(config.NUM_UAVS, float(done), dtype=np.float32)
 
         self._obs[self.ptr] = obs_arr
         self._actions[self.ptr] = actions
@@ -56,7 +41,7 @@ class ReplayBuffer:
         """Sample a batch of experiences.\\
         O(1) random batch sampling via numpy fancy-indexing.
         """
-        indices = np.random.randint(0, self.size, size=batch_size)
+        indices: np.ndarray = np.random.randint(0, self.size, size=batch_size)
         return (
             self._obs[indices],
             self._actions[indices],
