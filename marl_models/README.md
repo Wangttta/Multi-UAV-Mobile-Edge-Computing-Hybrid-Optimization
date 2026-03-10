@@ -1,28 +1,6 @@
 # MARL Algorithms - Multi-Agent Reinforcement Learning Models
 
-This folder contains 8 different MARL algorithm implementations for multi-agent coordination:
-
-## 📊 Algorithm Overview
-
-### Base Algorithms (No Attention)
-
-| Algorithm | Type | Best For |
-|-----------|------|----------|
-| **Random** | None | Random baseline |
-| **MADDPG** | Off-policy | Stable baseline |
-| **MATD3** | Off-policy | More stable (twin critics) |
-| **MAPPO** | On-policy | Fast learning |
-| **MASAC** | Off-policy + entropy | Exploration friendly |
-
-### Attention Variants (With Graph Attention Networks)
-
-| Algorithm | Base | Advantage |
-|-----------|------|-----------|
-| **Attention MADDPG** | MADDPG | Better agent coordination |
-| **Attention MATD3** | MATD3 | Stable + coordinated |
-| **Attention MAPPO** | MAPPO | Fast + coordinated |
-| **Attention MASAC** | MASAC | Exploration + coordination |
-
+This folder contains 8 different MARL algorithm implementations for multi-agent coordination along with a random baseline which selects random actions.
 
 ## 📁 Folder Structure
 
@@ -31,6 +9,7 @@ marl_models/
 ├── base_model.py          # Base class for all models
 ├── buffer_and_helpers.py  # Experience replay buffer
 ├── utils.py               # Model factory & utilities
+├── README.md              # README for the folder
 │
 ├── maddpg/                # MADDPG implementation
 │   ├── agents.py          # Agent class
@@ -40,6 +19,8 @@ marl_models/
 ├── mappo/                 # MAPPO implementation
 ├── masac/                 # MASAC implementation
 │
+├── attention.py           # Attention base classes
+|
 ├── attention_maddpg/      # MADDPG + Attention
 │   ├── agents.py
 │   └── attention_maddpg.py
@@ -80,7 +61,7 @@ python tune.py --stage 1 --episodes 500 --trials 50
 ```
 
 ### Stage 2: Algorithm Hyperparameters
-Tunes learning rates, network size, batch size, discount factor:
+Tunes learning rates, network size, batch size, discount factor etc:
 ```bash
 python tune.py --stage 2 --episodes 1000 --trials 50
 ```

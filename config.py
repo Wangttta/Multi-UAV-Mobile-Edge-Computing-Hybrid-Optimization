@@ -83,7 +83,7 @@ UE_STATIC_POWER: float = 0.05  # Idle power consumption in Watts
 
 # Model Parameters
 # Reward formula: reward = ALPHA_3*log(fairness) - ALPHA_1*log(latency) - ALPHA_2*log(energy) - ALPHA_4*log(1+offline_rate)
-# Then scaled by REWARD_SCALING_FACTOR. All log terms ∈ [0, log(max_value)] to keep rewards bounded.
+# Then scaled by REWARD_SCALING_FACTOR.
 ALPHA_1 = 1.0  # weightage for latency (negative term, higher = stronger penalty for latency)
 ALPHA_2 = 0.4  # weightage for energy (negative term, lower priority than latency)
 ALPHA_3 = 2.0  # weightage for fairness (positive term, encourage equal service)

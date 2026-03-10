@@ -6,38 +6,24 @@ The primary objective of this research is to develop a framework for a **multi-U
 
 We are aiming to implement a hybrid optimization approach that combines multi-agent deep reinforcement learning with collaborative and adaptive caching policies. We are trying to create a generic framework that can be used with different models for finding the best-suited one for our purpose. We are also exploring incorporating **attention mechanisms** within the multi-agent reinforcement learning models for scalability and improved performance.
 
-Also trying to incorporate modern Python practices and type annotations. Developed using `Python 3.12.0` and `PyTorch 2.8.0`.
+Also trying to incorporate modern Python practices and type annotations (Python 3.12+).
 
-## 🎯 What This Project Does
+## 🎯 What's Included?
 
-This system optimizes a network of unmanned aerial vehicles (UAVs) that serve mobile user devices by:
+**MARL algorithms included:**
+- **MADDPG**
+- **MATD3**
+- **MAPPO**
+- **MASAC**
+- **4 Attention Variants of above algorithms**
 
-- **Reducing latency**: Smart task distribution between devices and edge servers
-- **Minimizing energy**: Efficient UAV movement and computation scheduling  
-- **Managing battery life**: Wireless power transfer (WPT) to critical devices
-- **Ensuring fairness**: Equal service quality for all users
-- **Learning intelligently**: Multi-agent reinforcement learning that adapts in real-time
-
-Perfect for scenarios like disaster response, smart cities, IoT networks, and remote area connectivity.
-
-## 📚 Understanding the System
-
-### What's Included
-
-**8 MARL Algorithm Variants:**
-- **MADDPG** - Stable baseline for multi-agent learning
-- **MATD3** - Improved MADDPG with delayed updates
-- **MAPPO** - On-policy algorithm for faster convergence
-- **MASAC** - Entropy-regularized learning for exploration
-- **4 Attention Variants** - Graph Attention Networks for better agent coordination
-
-See [marl_models/README.md](marl_models/README.md) for algorithm details.
+See [marl_models/README.md](marl_models/README.md) for further details.
 
 **Advanced Features:**
 - ✅ Offline rate tracking - Monitors device battery health
-- ✅ Wireless Power Transfer - UAVs charge critical devices
+- ✅ Wireless Power Transfer - UAVs charge devices under critical battery levels
 - ✅ Smart caching - Adaptive content placement
-- ✅ Multi-agent coordination - Through attention mechanisms
+- ✅ Multi-agent coordination - Through MARL algorithms enhanced with attention mechanisms
 - ✅ 3-stage tuning - Optimize reward weights, agent params, architecture
 
 ![System Model](docs/system_model.jpg)
@@ -69,7 +55,7 @@ See [marl_models/README.md](marl_models/README.md) for algorithm details.
 └── main.py                     # Legacy interface
 ```
 
-## ⚡ Quick Start (5 minutes)
+## ⚡ Instructions
 
 ### 1. Setup
 ```bash

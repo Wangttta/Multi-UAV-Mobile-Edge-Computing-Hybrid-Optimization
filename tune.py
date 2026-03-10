@@ -22,21 +22,21 @@ def objective(trial: optuna.Trial, stage: int, model_name: str, num_episodes: in
     """
     Optuna Objective Function.
     Adjusts config based on 'stage' and runs a training session.
-    
+
     Tuning Strategy:
     ================
     STAGE 1: Reward Function Weights (Objective Definition)
         - Tune ALPHA_1 (latency), ALPHA_2 (energy), ALPHA_3 (fairness), ALPHA_4 (offline rate)
         - Tune GDSF_SMOOTHING_FACTOR (caching decay)
         - Goal: Find the right balance of objectives
-        
+
     STAGE 2: Agent Hyperparameters (Solver Tuning)
         - Tune ACTOR_LR, CRITIC_LR (learning rates)
         - Tune MLP_HIDDEN_DIM (network capacity)
         - Tune PPO_BATCH_SIZE (for on-policy) or REPLAY_BATCH_SIZE (for off-policy)
         - Tune DISCOUNT_FACTOR (temporal credit assignment)
         - Goal: Find optimal hyperparameters for the reward function from Stage 1
-        
+
     STAGE 3: Architecture Hyperparameters (Attention-specific, if using attention models)
         - Tune ATTN_HIDDEN_DIM, ATTN_NUM_HEADS (attention layer capacity)
         - Goal: Optimize attention mechanism for the problem
@@ -71,7 +71,7 @@ def objective(trial: optuna.Trial, stage: int, model_name: str, num_episodes: in
         if config.MODEL in ["matd3", "masac", "maddpg", "attention_matd3", "attention_masac", "attention_maddpg"]:
             config.REPLAY_BATCH_SIZE = trial.suggest_categorical("batch_size", [64, 128, 256])
             config.UPDATE_FACTOR = trial.suggest_float("tau", 0.005, 0.05)
-            
+
             if config.MODEL in ["matd3", "attention_matd3"]:
                 config.TARGET_POLICY_NOISE = trial.suggest_float("target_noise", 0.1, 0.3)
 
@@ -80,7 +80,7 @@ def objective(trial: optuna.Trial, stage: int, model_name: str, num_episodes: in
             config.PPO_BATCH_SIZE = trial.suggest_categorical("batch_size", [64, 128, 256])
             config.PPO_CLIP_EPS = trial.suggest_float("clip_eps", 0.1, 0.3)
             config.PPO_ENTROPY_COEF = trial.suggest_float("entropy_coef", 0.001, 0.05, log=True)
-    
+
     # --- STAGE 3: Attention Architecture (for attention-based models) ---
     elif stage == 3:
         if "attention" not in model_name.lower():
@@ -92,7 +92,7 @@ def objective(trial: optuna.Trial, stage: int, model_name: str, num_episodes: in
         # Ensure divisibility constraint
         while config.ATTN_HIDDEN_DIM % config.ATTN_NUM_HEADS != 0:
             config.ATTN_NUM_HEADS = trial.suggest_categorical("attn_num_heads", [1, 2, 4, 8])
-    
+
     else:
         raise ValueError(f"Invalid stage: {stage}. Choose from [1, 2, 3]")
 
@@ -280,9 +280,7 @@ Examples:
         default=1000,
         help="Episodes per trial (Lower than full training)",
     )
-    parser.add_argument(
-        "--trials", type=int, default=50, help="Number of trials to run"
-    )
+    parser.add_argument("--trials", type=int, default=50, help="Number of trials to run")
 
     args = parser.parse_args()
     run_tuning(args)
