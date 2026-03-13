@@ -37,23 +37,37 @@ class CrossAttentionExtractor(nn.Module):
         # K, V: (batch, num_targets, hidden) -> (batch, num_targets, num_heads, head_dim) -> (batch, num_heads, num_targets, head_dim)
         K: torch.Tensor = self.key_layer(target_embeddings).view(batch_size, -1, config.ATTN_NUM_HEADS, self.head_dim).transpose(1, 2)
         V: torch.Tensor = self.value_layer(target_embeddings).view(batch_size, -1, config.ATTN_NUM_HEADS, self.head_dim).transpose(1, 2)
-        # Attention Scores
-        # (batch, 1, hidden) @ (batch, hidden, max_targets) -> (batch, 1, max_targets)
-        scores: torch.Tensor = torch.matmul(Q, K.transpose(-2, -1)) * self.scale
 
+        # -- Original Manual Attention Implementation --
+
+        # # Attention Scores
+        # # (batch, 1, hidden) @ (batch, hidden, max_targets) -> (batch, 1, max_targets)
+        # scores: torch.Tensor = torch.matmul(Q, K.transpose(-2, -1)) * self.scale
+
+        # if mask is not None:
+        #     # Mask padding positions (set score to -infinity so Softmax becomes 0)
+        #     # Mask: (batch, targets) -> (batch, 1, 1, targets)
+        #     mask_expanded: torch.Tensor = mask.unsqueeze(1).unsqueeze(1)
+        #     scores = scores.masked_fill(mask_expanded == 0, float("-inf"))
+
+        # attn_weights: torch.Tensor = F.softmax(scores, dim=-1)
+
+        # # Handle case where all targets are padding (e.g., no neighbors) -> nan check
+        # attn_weights = torch.nan_to_num(attn_weights, nan=0.0)
+
+        # # Weighted Sum
+        # context: torch.Tensor = torch.matmul(attn_weights, V)  # (batch, 1, hidden)
+
+        # -- Refactored to use Pytorch's in-built Attention --
+
+        attn_mask: torch.Tensor | None = None
         if mask is not None:
-            # Mask padding positions (set score to -infinity so Softmax becomes 0)
-            # Mask: (batch, targets) -> (batch, 1, 1, targets)
-            mask_expanded: torch.Tensor = mask.unsqueeze(1).unsqueeze(1)
-            scores = scores.masked_fill(mask_expanded == 0, float("-inf"))
+            attn_mask = mask.unsqueeze(1).unsqueeze(1).bool()
 
-        attn_weights: torch.Tensor = F.softmax(scores, dim=-1)
+        context: torch.Tensor = F.scaled_dot_product_attention(Q, K, V, attn_mask=attn_mask)
 
-        # Handle case where all targets are padding (e.g., no neighbors) -> nan check
-        attn_weights: torch.Tensor = torch.nan_to_num(attn_weights, nan=0.0)
-
-        # Weighted Sum
-        context: torch.Tensor = torch.matmul(attn_weights, V)  # (batch, 1, hidden)
+        context = torch.nan_to_num(context, nan=0.0)
+        # -- Change over --
 
         # (batch, heads, 1, head_dim) -> (batch, 1, heads, head_dim) -> (batch, 1, hidden)
         context = context.transpose(1, 2).reshape(batch_size, 1, -1)

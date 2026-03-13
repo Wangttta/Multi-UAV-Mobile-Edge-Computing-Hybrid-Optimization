@@ -38,9 +38,7 @@ class ReplayBuffer:
         self.size = min(self.size + 1, self.max_size)
 
     def sample(self, batch_size: int) -> OffPolicyExperienceBatch:
-        """Sample a batch of experiences.\\
-        O(1) random batch sampling via numpy fancy-indexing.
-        """
+        """Sample a batch of experiences. O(1) random batch sampling via numpy fancy-indexing."""
         indices: np.ndarray = np.random.randint(0, self.size, size=batch_size)
         return (
             self._obs[indices],
@@ -95,9 +93,9 @@ class RolloutBuffer:
         """Computes the advantages and returns for the collected trajectories using GAE."""
         last_gae_lam: float = 0.0
         for t in reversed(range(self.buffer_size)):
-            next_values: np.ndarray = (last_values if t == self.buffer_size - 1 else self.values[t + 1])
-            delta: np.ndarray = (self.rewards[t] + gamma * next_values * (1.0 - self.dones[t]) - self.values[t])
-            self.advantages[t] = last_gae_lam = (delta + gamma * gae_lambda * (1.0 - self.dones[t]) * last_gae_lam)
+            next_values: np.ndarray = last_values if t == self.buffer_size - 1 else self.values[t + 1]
+            delta: np.ndarray = self.rewards[t] + gamma * next_values * (1.0 - self.dones[t]) - self.values[t]
+            self.advantages[t] = last_gae_lam = delta + gamma * gae_lambda * (1.0 - self.dones[t]) * last_gae_lam
 
         self.returns = self.advantages + self.values
 
@@ -116,18 +114,18 @@ class RolloutBuffer:
         # FIX: Convert entire epoch's data to GPU tensors ONCE before looping,
         # instead of calling torch.as_tensor(..., device=...) per mini-batch.
         # This eliminates repeated CPU→GPU transfers inside the hot path.
-        t_states = torch.as_tensor(states, device=self.device)
-        t_obs = torch.as_tensor(obs, device=self.device)
-        t_actions = torch.as_tensor(actions, device=self.device)
-        t_log_probs = torch.as_tensor(log_probs, device=self.device)
-        t_advantages = torch.as_tensor(advantages, device=self.device)
-        t_returns = torch.as_tensor(returns, device=self.device)
-        t_values = torch.as_tensor(values, device=self.device)
+        t_states: torch.Tensor = torch.from_numpy(states).to(self.device)
+        t_obs: torch.Tensor = torch.from_numpy(obs).to(self.device)
+        t_actions: torch.Tensor = torch.from_numpy(actions).to(self.device)
+        t_log_probs: torch.Tensor = torch.from_numpy(log_probs).to(self.device)
+        t_advantages: torch.Tensor = torch.from_numpy(advantages).to(self.device)
+        t_returns: torch.Tensor = torch.from_numpy(returns).to(self.device)
+        t_values: torch.Tensor = torch.from_numpy(values).to(self.device)
 
-        indices = torch.randperm(num_samples, device=self.device)
+        indices: torch.Tensor = torch.randperm(num_samples, device=self.device)
 
         for start in range(0, num_samples, batch_size):
-            idx = indices[start : start + batch_size]
+            idx: torch.Tensor = indices[start : start + batch_size]
 
             yield {
                 "states": t_states[idx],
@@ -147,21 +145,21 @@ class AttentionRolloutBuffer(RolloutBuffer):
     """Preserves (Batch, Num_Agents, Dim) structure required for Graph Attention."""
 
     def get_batches(self, batch_size: int):
-        num_time_steps = self.buffer_size
+        num_time_steps: int = self.buffer_size
 
         # FIX (same as above): upload all data to GPU once per epoch
-        t_states = torch.as_tensor(self.states, device=self.device)
-        t_obs = torch.as_tensor(self.observations, device=self.device)
-        t_actions = torch.as_tensor(self.actions, device=self.device)
-        t_log_probs = torch.as_tensor(self.log_probs, device=self.device)
-        t_advantages = torch.as_tensor(self.advantages, device=self.device)
-        t_returns = torch.as_tensor(self.returns, device=self.device)
-        t_values = torch.as_tensor(self.values, device=self.device)
+        t_states: torch.Tensor = torch.from_numpy(self.states).to(self.device)
+        t_obs: torch.Tensor = torch.from_numpy(self.observations).to(self.device)
+        t_actions: torch.Tensor = torch.from_numpy(self.actions).to(self.device)
+        t_log_probs: torch.Tensor = torch.from_numpy(self.log_probs).to(self.device)
+        t_advantages: torch.Tensor = torch.from_numpy(self.advantages).to(self.device)
+        t_returns: torch.Tensor = torch.from_numpy(self.returns).to(self.device)
+        t_values: torch.Tensor = torch.from_numpy(self.values).to(self.device)
 
-        indices = torch.randperm(num_time_steps, device=self.device)
+        indices: torch.Tensor = torch.randperm(num_time_steps, device=self.device)
 
         for start in range(0, num_time_steps, batch_size):
-            idx = indices[start : start + batch_size]
+            idx: torch.Tensor = indices[start : start + batch_size]
 
             yield {
                 "states": t_states[idx],

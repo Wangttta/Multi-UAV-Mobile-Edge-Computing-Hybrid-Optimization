@@ -6,6 +6,7 @@ class UE:
     all_ids: np.ndarray
     global_ranks: np.ndarray
     id_to_rank_map: dict[int, int]
+    global_probs: np.ndarray
 
     @classmethod
     def initialize_ue_class(cls) -> None:
@@ -14,7 +15,7 @@ class UE:
         np.random.shuffle(cls.global_ranks)  # Currently random ranks assigned
         cls.id_to_rank_map = dict(zip(cls.all_ids, cls.global_ranks))  # Mapping from ID to rank
         zipf_denom: float = np.sum(1 / cls.global_ranks**config.ZIPF_BETA)
-        cls.global_probs: np.ndarray = (1 / cls.global_ranks**config.ZIPF_BETA) / zipf_denom
+        cls.global_probs = (1 / cls.global_ranks**config.ZIPF_BETA) / zipf_denom
 
     def __init__(self, ue_id: int) -> None:
         self.id: int = ue_id

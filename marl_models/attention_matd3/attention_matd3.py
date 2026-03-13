@@ -16,7 +16,7 @@ class AttentionMATD3(MARLModel):
         self.actors: list[ActorNetwork] = [ActorNetwork(obs_dim, action_dim).to(device) for _ in range(num_agents)]
         self.critics_1: list[CriticNetwork] = [CriticNetwork(obs_dim, action_dim).to(device) for _ in range(num_agents)]
         self.critics_2: list[CriticNetwork] = [CriticNetwork(obs_dim, action_dim).to(device) for _ in range(num_agents)]
-        
+
         self.target_actors: list[ActorNetwork] = [ActorNetwork(obs_dim, action_dim).to(device) for _ in range(num_agents)]
         self.target_critics_1: list[CriticNetwork] = [CriticNetwork(obs_dim, action_dim).to(device) for _ in range(num_agents)]
         self.target_critics_2: list[CriticNetwork] = [CriticNetwork(obs_dim, action_dim).to(device) for _ in range(num_agents)]
@@ -35,7 +35,7 @@ class AttentionMATD3(MARLModel):
         # Delayed Updates Counter
         self.update_counter: int = 0
 
-    def select_actions(self, obs_arr: np.ndarray, exploration: bool) -> np.ndarray:
+    def select_actions(self, observations: np.ndarray, exploration: bool) -> np.ndarray:
         # FIX: Batch all agent observations into a single tensor and run ONE
         # forward pass instead of N separate forward passes in a Python loop.
         # This keeps the GPU busy with one larger kernel instead of N tiny ones,
@@ -45,9 +45,8 @@ class AttentionMATD3(MARLModel):
         # always copies memory and emits a UserWarning when given a numpy array;
         # from_numpy() shares memory (zero-copy) when the array is contiguous.
         with torch.no_grad():
-            obs_tensor: torch.Tensor = torch.from_numpy(obs_arr).to(self.device)  # zero-copy on CPU, then one H2D transfer
-
-            actions: np.ndarray = np.empty_like(obs_arr[:, : config.ACTION_DIM])  # pre-allocate result
+            obs_tensor: torch.Tensor = torch.from_numpy(observations).to(self.device)  # zero-copy on CPU, then one H2D transfer
+            actions: np.ndarray = np.empty_like(observations[:, : config.ACTION_DIM])  # pre-allocate result
 
             # We still call each actor separately because they have independent weights,
             # but we avoid the per-agent tensor-creation overhead above.
@@ -55,7 +54,7 @@ class AttentionMATD3(MARLModel):
                 action: np.ndarray = self.actors[i](obs_tensor[i].unsqueeze(0)).squeeze(0).cpu().numpy()
 
                 if exploration:
-                    action = action + self.noise[i].sample()
+                    action += self.noise[i].sample()
                 actions[i] = np.clip(action, -1.0, 1.0)
 
         return actions
@@ -124,7 +123,7 @@ class AttentionMATD3(MARLModel):
             torch.nn.utils.clip_grad_norm_(self.critics_2[agent_idx].parameters(), config.MAX_GRAD_NORM)
             self.critic_2_optimizers[agent_idx].step()
 
-            avg_critic_loss = (float(critic_1_loss.detach().item()) + float(critic_2_loss.detach().item())) / 2.0
+            avg_critic_loss = (float(critic_1_loss.item()) + float(critic_2_loss.item())) / 2.0
             agent_critic_losses.append(avg_critic_loss)
 
         # Delayed Policy and Target Network Updates
@@ -139,7 +138,7 @@ class AttentionMATD3(MARLModel):
                 actor_loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.actors[agent_idx].parameters(), config.MAX_GRAD_NORM)
                 self.actor_optimizers[agent_idx].step()
-                agent_losses.append(float(actor_loss.detach().item()))
+                agent_losses.append(float(actor_loss.item()))
 
                 # Soft update all target networks
                 soft_update(self.target_actors[agent_idx], self.actors[agent_idx], config.UPDATE_FACTOR)

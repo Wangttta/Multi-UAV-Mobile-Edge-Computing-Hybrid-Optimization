@@ -21,7 +21,7 @@ class ActorNetwork(nn.Module):
         # Output the mean of the distribution. Tanh activation scales it to [-1, 1].
         mean: torch.Tensor = torch.tanh(self.mean(x))
         log_std: torch.Tensor = torch.clamp(self.log_std, config.LOG_STD_MIN, config.LOG_STD_MAX)
-        std: torch.Tensor = torch.exp(log_std)
+        std: torch.Tensor = torch.exp(log_std).expand_as(mean)
         return Normal(mean, std)
 
 

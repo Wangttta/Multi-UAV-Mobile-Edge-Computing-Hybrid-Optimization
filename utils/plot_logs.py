@@ -2,7 +2,6 @@ import os
 import json
 import matplotlib.pyplot as plt
 import numpy as np
-from typing import Optional
 
 
 def plot_metric(

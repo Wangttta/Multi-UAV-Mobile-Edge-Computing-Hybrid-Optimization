@@ -75,7 +75,7 @@ pip install -r requirements.txt
 pip install -r requirements.txt --index-url https://download.pytorch.org/whl/cu126
 ```
 
-### 2. Train Your First Model
+### 2. Training Model
 ```bash
 # Train MADDPG for 1000 episodes
 python train.py --num_episodes 1000
