@@ -104,6 +104,7 @@ class RolloutBuffer:
         num_samples: int = self.buffer_size * self.num_agents
 
         states: np.ndarray = np.repeat(self.states, self.num_agents, axis=0)
+        agent_ids: np.ndarray = np.tile(np.arange(self.num_agents), self.buffer_size)
         obs: np.ndarray = self.observations.reshape(-1, self.obs_dim)
         actions: np.ndarray = self.actions.reshape(-1, self.action_dim)  # Reshape to (N, action_dim)
         log_probs: np.ndarray = self.log_probs.reshape(-1)
@@ -115,6 +116,7 @@ class RolloutBuffer:
         # instead of calling torch.as_tensor(..., device=...) per mini-batch.
         # This eliminates repeated CPU→GPU transfers inside the hot path.
         t_states: torch.Tensor = torch.from_numpy(states).to(self.device)
+        t_agent_ids: torch.Tensor = torch.from_numpy(agent_ids).to(self.device)
         t_obs: torch.Tensor = torch.from_numpy(obs).to(self.device)
         t_actions: torch.Tensor = torch.from_numpy(actions).to(self.device)
         t_log_probs: torch.Tensor = torch.from_numpy(log_probs).to(self.device)
@@ -129,6 +131,7 @@ class RolloutBuffer:
 
             yield {
                 "states": t_states[idx],
+                "agent_ids": t_agent_ids[idx],
                 "obs": t_obs[idx],
                 "actions": t_actions[idx],
                 "old_log_probs": t_log_probs[idx],

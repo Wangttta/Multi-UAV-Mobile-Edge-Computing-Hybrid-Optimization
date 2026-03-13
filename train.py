@@ -3,6 +3,7 @@ from marl_models.buffer_and_helpers import ReplayBuffer, RolloutBuffer, Attentio
 from marl_models.utils import save_models
 from environment.env import Env
 from utils.logger import Logger, Log
+
 # from utils.plot_snapshots import plot_snapshot  # snapshot plotting, comment if not needed
 
 # from utils.plot_snapshots import update_trajectories, reset_trajectories  # trajectory tracking, comment if not needed
@@ -25,11 +26,12 @@ def train_on_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: in
         save_freq = 100
     rollout_log: Log = Log()
     accumulated_losses: dict = {"actor": [], "critic": [], "entropy": []}
-    recent_rewards: list[float] = [] # Tracking metrics for tuning
+    recent_rewards: list[float] = []  # Tracking metrics for tuning
 
     for update in range(1, num_updates + 1):
         obs: list[np.ndarray] = env.reset()
-        state: np.ndarray = np.concatenate(obs, axis=0)
+        obs_arr: np.ndarray = np.asarray(obs, dtype=np.float32)
+        state: np.ndarray = np.concatenate(obs, axis=0, dtype=np.float32)
         rollout_reward: float = 0.0
         rollout_latency: float = 0.0
         rollout_energy: float = 0.0
@@ -42,16 +44,16 @@ def train_on_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: in
             # if step % config.IMG_FREQ == 0:
             #     plot_snapshot(env, update, step, logger.log_dir, "update", logger.timestamp)
 
-            obs_arr: np.ndarray = np.asarray(obs, dtype=np.float32)
-            actions, log_probs, values = model.get_action_and_value(obs_arr, state)
+            raw_actions, log_probs, values = model.get_action_and_value(obs_arr, state)
+            actions: np.ndarray = np.clip(raw_actions, -1.0, 1.0)
 
             next_obs, rewards, (total_latency, total_energy, jfi, offline_rate) = env.step(actions)
             # update_trajectories(env)  # tracking code, comment if not needed
-            next_state: np.ndarray = np.concatenate(next_obs, axis=0)
+            next_state: np.ndarray = np.concatenate(next_obs, axis=0, dtype=np.float32)
             done: bool = step >= config.PPO_ROLLOUT_LENGTH
-            buffer.add(state, obs_arr, actions, log_probs, rewards, done, values)
-
+            buffer.add(state, obs_arr, raw_actions, log_probs, rewards, done, values)
             obs = next_obs
+            obs_arr = np.asarray(obs, dtype=np.float32)
             state = next_state
 
             rollout_reward += np.sum(rewards)
@@ -70,7 +72,8 @@ def train_on_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: in
                 raise optuna.TrialPruned()
 
         with torch.no_grad():
-            _, _, last_values = model.get_action_and_value(np.asarray(obs, dtype=np.float32), state)
+            obs_arr = np.asarray(obs, dtype=np.float32)
+            _, _, last_values = model.get_action_and_value(obs_arr, state)
 
         buffer.compute_returns_and_advantages(last_values, config.DISCOUNT_FACTOR, config.PPO_GAE_LAMBDA)
 
@@ -104,7 +107,7 @@ def train_on_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: in
     save_models(model, -1, "update", logger.timestamp, final=True)
 
     # Return average reward of last 10% of training for optimization score
-    return float(np.mean(recent_rewards[-int(num_updates * 0.1):]))
+    return float(np.mean(recent_rewards[-int(num_updates * 0.1) :]))
 
 
 def train_off_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: int, total_step_count: int, trial: optuna.Trial | None = None) -> float:
@@ -144,12 +147,12 @@ def train_off_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: i
                 actions = model.select_actions(obs_arr, exploration=True)
 
             next_obs, rewards, (total_latency, total_energy, jfi, offline_rate) = env.step(actions)
-            next_obs = np.array(next_obs, dtype=np.float32)
+            next_obs_arr: np.ndarray = np.array(next_obs, dtype=np.float32)
             # update_trajectories(env)  # tracking code, comment if not needed
             done: bool = step >= config.STEPS_PER_EPISODE
-            buffer.add(obs_arr, actions, rewards, next_obs, done)
+            buffer.add(obs_arr, actions, rewards, next_obs_arr, done)
 
-            if ((total_step_count > config.INITIAL_RANDOM_STEPS) and (step % config.LEARN_FREQ == 0) and (len(buffer) > config.REPLAY_BATCH_SIZE)):
+            if (total_step_count > config.INITIAL_RANDOM_STEPS) and (step % config.LEARN_FREQ == 0) and (len(buffer) > config.REPLAY_BATCH_SIZE):
                 batch = buffer.sample(config.REPLAY_BATCH_SIZE)
                 loss_dict = model.update(batch)
                 if loss_dict:
@@ -187,7 +190,7 @@ def train_off_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: i
                 accumulated_losses["alpha"] = []
         if episode % save_freq == 0 and episode < num_episodes:
             save_models(model, episode, "episode", logger.timestamp, total_steps=total_step_count)
-        
+
         recent_rewards.append(episode_reward)
         if trial:
             # Report average of last 10 episodes
@@ -199,7 +202,7 @@ def train_off_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: i
     save_models(model, -1, "episode", logger.timestamp, final=True, total_steps=total_step_count)
 
     # Return average reward of last 10% of training for optimization score
-    return float(np.mean(recent_rewards[-int(num_episodes * 0.1):]))
+    return float(np.mean(recent_rewards[-int(num_episodes * 0.1) :]))
 
 
 def train_random(env: Env, model: MARLModel, logger: Logger, num_episodes: int) -> float:
@@ -223,7 +226,6 @@ def train_random(env: Env, model: MARLModel, logger: Logger, num_episodes: int) 
             obs_arr: np.ndarray = np.array(obs, dtype=np.float32)
             actions: np.ndarray = model.select_actions(obs_arr, exploration=False)
             next_obs, rewards, (total_latency, total_energy, jfi, offline_rate) = env.step(actions)
-            next_obs = np.array(next_obs, dtype=np.float32)
             # update_trajectories(env)  # tracking code, comment if not needed
             done: bool = step >= config.STEPS_PER_EPISODE
             obs = next_obs

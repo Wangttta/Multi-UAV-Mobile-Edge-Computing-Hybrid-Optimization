@@ -185,6 +185,43 @@ class AttentionCriticBase(nn.Module):
         combined: torch.Tensor = torch.cat([me_embedding, context], dim=1)
         return combined
 
+    def vectorized_attend_to_others(self, embeddings: torch.Tensor) -> torch.Tensor:
+        """
+        Computes attention for all agents simultaneously, masking out self-attention.
+        Args:
+            embeddings: (Batch, Num_Agents, Hidden_Dim)
+        Returns:
+            combined: (Batch, Num_Agents, Fusion_Dim)
+        """
+        # Code repetition to support N-to-N attention compared to 1-to-N in self.attention.forward() and maintain clarity.
+        batch_size, num_agents, _ = embeddings.shape
+
+        # Pass through the linear layers of the existing attention module
+        Q: torch.Tensor = self.attention.query_layer(embeddings)
+        K: torch.Tensor = self.attention.key_layer(embeddings)
+        V: torch.Tensor = self.attention.value_layer(embeddings)
+
+        # Reshape for multi-head attention
+        # (Batch, Num_Agents, Heads, Head_Dim) -> (Batch, Heads, Num_Agents, Head_Dim)
+        Q = Q.view(batch_size, num_agents, self.num_heads, -1).transpose(1, 2)
+        K = K.view(batch_size, num_agents, self.num_heads, -1).transpose(1, 2)
+        V = V.view(batch_size, num_agents, self.num_heads, -1).transpose(1, 2)
+
+        # Mask to exclude self-attention (agent i does not attend to agent i)
+        # torch.eye puts 1s on the diagonal. `~` flips it so the diagonal is False.
+        mask: torch.Tensor = ~torch.eye(num_agents, dtype=torch.bool, device=embeddings.device)
+
+        # Compute for all agents at once
+        context: torch.Tensor = F.scaled_dot_product_attention(Q, K, V, attn_mask=mask)
+
+        # Reshape back to (Batch, Num_Agents, Hidden_Dim)
+        context = context.transpose(1, 2).reshape(batch_size, num_agents, -1)
+        context = self.attention.out_proj(context)
+
+        # Fusion: concatenate original embeddings with the attended context
+        combined: torch.Tensor = torch.cat([embeddings, context], dim=-1)
+        return combined
+
     def get_q_embedding(self, obs_tensor: torch.Tensor, action_tensor: torch.Tensor, agent_index: int) -> torch.Tensor:
         """
         Calculates the embedding for agent i (for Q-value) by attending to all other agents.

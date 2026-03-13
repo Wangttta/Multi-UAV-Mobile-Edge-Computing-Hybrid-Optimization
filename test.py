@@ -28,7 +28,8 @@ def test_model(env: Env, model: MARLModel, logger: Logger, num_episodes: int) ->
             if step % config.TEST_IMG_FREQ == 0:
                 plot_snapshot(env, episode, step, logger.log_dir, "episode", logger.timestamp)
 
-            actions: np.ndarray = model.select_actions(obs, exploration=False)
+            obs_arr: np.ndarray = np.asarray(obs, dtype=np.float32)
+            actions: np.ndarray = model.select_actions(obs_arr, exploration=False)
             next_obs, rewards, (total_latency, total_energy, jfi, offline_rate) = env.step(actions)
             # update_trajectories(env)  # tracking code, comment if not needed
             done: bool = step >= config.STEPS_PER_EPISODE

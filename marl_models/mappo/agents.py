@@ -26,9 +26,10 @@ class ActorNetwork(nn.Module):
 
 
 class CriticNetwork(nn.Module):
-    def __init__(self, state_dim: int) -> None:
+    def __init__(self, state_dim: int, num_agents: int) -> None:
         super().__init__()
-        self.fc1: nn.Linear = layer_init(nn.Linear(state_dim, config.MLP_HIDDEN_DIM))
+        input_dim: int = state_dim + num_agents
+        self.fc1: nn.Linear = layer_init(nn.Linear(input_dim, config.MLP_HIDDEN_DIM))
         self.ln1: nn.LayerNorm = nn.LayerNorm(config.MLP_HIDDEN_DIM)
         self.fc2: nn.Linear = layer_init(nn.Linear(config.MLP_HIDDEN_DIM, config.MLP_HIDDEN_DIM))
         self.ln2: nn.LayerNorm = nn.LayerNorm(config.MLP_HIDDEN_DIM)
