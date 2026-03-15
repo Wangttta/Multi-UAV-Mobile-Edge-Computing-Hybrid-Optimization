@@ -137,6 +137,7 @@ class MADDPG(MARLModel):
                     "target_critic": self.target_critics[i].state_dict(),
                     "actor_optimizer": self.actor_optimizers[i].state_dict(),
                     "critic_optimizer": self.critic_optimizers[i].state_dict(),
+                    "noise_scale": self.noise[i].scale,
                 },
                 os.path.join(directory, f"agent_{i}.pth"),
             )
@@ -157,3 +158,4 @@ class MADDPG(MARLModel):
             self.target_critics[i].load_state_dict(checkpoint["target_critic"])
             self.actor_optimizers[i].load_state_dict(checkpoint["actor_optimizer"])
             self.critic_optimizers[i].load_state_dict(checkpoint["critic_optimizer"])
+            self.noise[i].scale = checkpoint["noise_scale"]

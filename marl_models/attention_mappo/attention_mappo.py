@@ -56,9 +56,6 @@ class AttentionMAPPO(MARLModel):
         returns_batch: torch.Tensor = batch["returns"]
         old_values_batch: torch.Tensor = batch["old_values"]
 
-        # Normalize advantages
-        advantages_batch = (advantages_batch - advantages_batch.mean()) / (advantages_batch.std() + 1e-8)
-
         # Critic Update
         values: torch.Tensor = self.critic(obs_batch)  # (Batch, Num_Agents)
 

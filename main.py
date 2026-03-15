@@ -13,11 +13,12 @@ import warnings
 import os
 from datetime import datetime
 
-torch.set_float32_matmul_precision('high')
+torch.set_float32_matmul_precision("high")
+
 
 def start_training(args: argparse.Namespace):
     timestamp: str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    print(f"\n🚀 Training started at {timestamp} for {args.num_episodes} episodes\n")
+    print(f"\n🚀 Training started at {timestamp} for {args.num_episodes} episodes")
 
     np.random.seed(config.SEED)
     torch.manual_seed(config.SEED)
@@ -26,7 +27,7 @@ def start_training(args: argparse.Namespace):
     model: MARLModel = get_model(model_name)
 
     # Setup logging directory
-    model_log_dir = f"train_logs/{model_name}"
+    model_log_dir: str = f"train_logs/{model_name}"
     if not os.path.exists(model_log_dir):
         os.makedirs(model_log_dir)
 
@@ -59,13 +60,12 @@ def start_training(args: argparse.Namespace):
     print("✅ Training Completed!\n")
     print("📊 Generating plots...")
 
-    model_plot_dir = f"train_plots/{model_name}"
-    generate_plots(f"{model_log_dir}/log_data_{timestamp}.json", f"{model_plot_dir}/", "train", timestamp)
+    generate_plots(f"{model_log_dir}/log_data_{timestamp}.json", f"train_plots/{model_name}/", "train", timestamp)
 
 
 def start_testing(args: argparse.Namespace):
     timestamp: str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    print(f"\n🚀 Testing started at {timestamp} for {args.num_episodes} episodes\n")
+    print(f"\n🚀 Testing started at {timestamp} for {args.num_episodes} episodes")
 
     np.random.seed(config.SEED)
     torch.manual_seed(config.SEED)
@@ -74,7 +74,7 @@ def start_testing(args: argparse.Namespace):
     model: MARLModel = get_model(model_name)
 
     # Setup logging directory
-    model_log_dir = f"test_logs/{model_name}"
+    model_log_dir: str = f"test_logs/{model_name}"
     if not os.path.exists(model_log_dir):
         os.makedirs(model_log_dir)
 
@@ -88,7 +88,8 @@ def start_testing(args: argparse.Namespace):
 
     print("✅ Testing Completed!\n")
     print("📊 Generating plots...")
-    generate_plots(f"test_logs/log_data_{timestamp}.json", "test_plots/", "test", timestamp, smoothing_window=2)
+
+    generate_plots(f"{model_log_dir}/log_data_{timestamp}.json", f"test_plots/{model_name}/", "test", timestamp, smoothing_window=2)
 
 
 if __name__ == "__main__":

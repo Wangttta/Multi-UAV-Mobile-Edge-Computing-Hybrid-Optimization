@@ -38,67 +38,52 @@ See [marl_models/README.md](marl_models/README.md) for further details.
 │   ├── user_equipments.py       # Device battery & requests
 │   └── comm_model.py            # Communication & WPT
 │
-├── marl_models/                 # RL algorithms (see marl_models/README.md)
-│   ├── maddpg/, ...             # Base algorithms
-│   ├── attention_maddpg/, ...   # Attention variants
-│   └── random_baseline/         # Baseline for comparison
+├── marl_models/                 # RL algorithms (see marl_models/README.md for detailed structure)
 │
 ├── utils/                       # Utilities
 │   ├── logger.py                # Training logs & metrics
 │   ├── plot_logs.py             # Single run visualization
+│   ├── plot_snapshots.py        # Snapshots of environment and trajectories
 │   └── comparative_plots.py     # Multi-algorithm comparison
 │
-├── config.py                   # All parameters (detailed in change_parameters.md)
+├── config.py                   # All parameters
 ├── train.py                    # Training script
 ├── test.py                     # Testing script
 ├── tune.py                     # Hyperparameter tuning with Optuna
 └── main.py                     # Legacy interface
 ```
 
-## ⚡ Instructions
+## ⚡ Setup Instructions
 
-### 1. Setup
+To run this project, you need to install PyTorch specifically for your system's hardware first, followed by the rest of the dependencies.
+
+For Windows users with NVIDIA GPUs (CUDA 12.4), use:
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cu124
+```
+
 ```bash
 # Clone repository
 git clone <repo_url>
 cd Multi-UAV-Mobile-Edge-Computing-Hybrid-Optimization
 
 # Create virtual environment (Python 3.12+)
-python -m venv venv
-venv\Scripts\activate  # Windows
-# or: source venv/bin/activate  # Linux/Mac
+python -m venv .venv
+.venv\Scripts\activate  # Windows
+# or: source .venv/bin/activate  # Linux/Mac
 
 # Install dependencies
 pip install -r requirements.txt
-
-# Install dependencies (with GPU enable PyTorch version)
-pip install -r requirements.txt --index-url https://download.pytorch.org/whl/cu126
 ```
-
-### 2. Training Model
-```bash
-# Train MADDPG for 1000 episodes
-python train.py --num_episodes 1000
-
-# Watch training progress in console
-# Results saved to train_logs/maddpg/
-```
-
-That's it! You now have a working multi-agent learning system. ✅
 
 ## 🚀 How to Use
 
-
 ### 📋 Requirements
 
-- **Python**: 3.12.0+
-- **PyTorch**: 2.8.0+
-- **NumPy**, **Matplotlib**, **Optuna** (for tuning)
-
-```bash
-# Install all dependencies
-pip install -r requirements.txt
-```
+- **Python** (3.12.0+)
+- **PyTorch** (version as per your GPU and OS, along with any other dependencies)
+- **NumPy**, **Matplotlib**, **Optuna** (and Plotly, Kaleido, Scikit-Learn for Optuna visualisation)
 
 ### Training
 
@@ -112,8 +97,6 @@ python main.py train --num_episodes=<total_episodes>
 python main.py train --num_episodes=<additional_episodes> --resume_path="<path_to_checkpoint_directory>" --config_path="<path_to_saved_config>"
 
 ```
-
-Results saved to: `train_logs/<model>/<timestamp>/`
 
 ### Hyperparameter Tuning
 
@@ -153,13 +136,11 @@ python utils/compare_algorithms.py \
 
 Refer [Plotting Module](./docs/PLOTTING_MODULE.md) for detailed plotting plan.
 
-## 🚀 Status
-
-**PS: Currently under rapid development and may be subject to significant changes.**
-
 ## 👨‍💻 Contributors
 
 - Roopam Taneja
 - Vraj Tamakuwala
+
+**PS: Currently under rapid development and may be subject to significant changes.**
 
 ### Made with ❤️

@@ -65,9 +65,6 @@ class MAPPO(MARLModel):
         one_hots: torch.Tensor = F.one_hot(agent_ids_batch, num_classes=self.num_agents).float()
         critic_input: torch.Tensor = torch.cat([states_batch, one_hots], dim=-1)
 
-        # Normalize advantages
-        advantages_batch = (advantages_batch - advantages_batch.mean()) / (advantages_batch.std() + 1e-8)
-
         # Critic Update
         values: torch.Tensor = self.critic(critic_input).squeeze(-1)
 

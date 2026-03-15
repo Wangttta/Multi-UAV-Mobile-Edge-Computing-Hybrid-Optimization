@@ -179,6 +179,7 @@ class AttentionMATD3(MARLModel):
                     "actor_optimizer": self.actor_optimizers[i].state_dict(),
                     "critic_1_optimizer": self.critic_1_optimizers[i].state_dict(),
                     "critic_2_optimizer": self.critic_2_optimizers[i].state_dict(),
+                    "noise_scale": self.noise[i].scale,
                 },
                 os.path.join(directory, f"agent_{i}.pth"),
             )
@@ -204,6 +205,7 @@ class AttentionMATD3(MARLModel):
             self.actor_optimizers[i].load_state_dict(checkpoint["actor_optimizer"])
             self.critic_1_optimizers[i].load_state_dict(checkpoint["critic_1_optimizer"])
             self.critic_2_optimizers[i].load_state_dict(checkpoint["critic_2_optimizer"])
+            self.noise[i].scale = checkpoint["noise_scale"]
         update_counter_path: str = os.path.join(directory, "update_counter.txt")
         if os.path.exists(update_counter_path):
             with open(update_counter_path, "r") as f:

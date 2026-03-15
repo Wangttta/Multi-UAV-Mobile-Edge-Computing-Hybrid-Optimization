@@ -198,7 +198,7 @@ class MASAC(MARLModel):
             load_safe(self.critics_2[i], checkpoint["critic_2"])
             self.target_critics_1[i].load_state_dict(checkpoint["target_critic_1"])
             self.target_critics_2[i].load_state_dict(checkpoint["target_critic_2"])
-            self.log_alphas[i] = torch.tensor(checkpoint["log_alpha"], requires_grad=True, device=self.device)
+            self.log_alphas[i] = torch.tensor([checkpoint["log_alpha"]], requires_grad=True, device=self.device)
             self.actor_optimizers[i].load_state_dict(checkpoint["actor_optimizer"])
             self.critic_1_optimizers[i].load_state_dict(checkpoint["critic_1_optimizer"])
             self.critic_2_optimizers[i].load_state_dict(checkpoint["critic_2_optimizer"])

@@ -99,6 +99,9 @@ class RolloutBuffer:
 
         self.returns = self.advantages + self.values
 
+        # Normalize advantages
+        self.advantages = (self.advantages - self.advantages.mean()) / (self.advantages.std() + 1e-8)
+
     def get_batches(self, batch_size: int) -> Generator[dict[str, torch.Tensor], None, None]:
         """A generator that yields mini-batches from the buffer."""
         num_samples: int = self.buffer_size * self.num_agents
