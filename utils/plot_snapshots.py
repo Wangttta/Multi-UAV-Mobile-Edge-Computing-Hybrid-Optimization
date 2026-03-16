@@ -39,16 +39,16 @@ import os
 #     tracker.reset(env)
 
 
-def plot_snapshot(env: Env, progress_step: int, step: int, save_dir: str, name: str, timestamp: str, initial: bool = False) -> None:
+def plot_snapshot(env: Env, progress_step: int, step: int, save_dir: str, timestamp: str, initial: bool = False) -> None:
     """Generates and saves a plot of the current environment state."""
-    save_path: str = f"{save_dir}/state_images_{timestamp}/{name}_{progress_step:04d}"
+    save_path: str = f"{save_dir}/state_images_{timestamp}/episode_{progress_step:04d}"
     if not os.path.exists(save_path):
         os.makedirs(save_path)
     fig, ax = plt.subplots(figsize=(12, 12))
     ax.set_xlim(0, config.AREA_WIDTH)
     ax.set_ylim(0, config.AREA_HEIGHT)
     ax.set_aspect("equal")
-    ax.set_title(f"Simulation Snapshot at {name.title()}: {progress_step}, Step: {step}")
+    ax.set_title(f"Simulation Snapshot at Episode: {progress_step}, Step: {step}")
     ax.set_xlabel("X coordinate (m)")
     ax.set_ylabel("Y coordinate (m)")
 

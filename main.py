@@ -3,7 +3,7 @@ from environment.env import Env
 from marl_models.utils import get_model, load_step_count
 from train import train_on_policy, train_off_policy, train_random
 from test import test_model
-from utils.logger import Logger
+from utils.logger import Logger, load_configs
 from utils.plot_logs import generate_plots
 import config
 import torch
@@ -20,28 +20,28 @@ def start_training(args: argparse.Namespace):
     timestamp: str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     print(f"\n🚀 Training started at {timestamp} for {args.num_episodes} episodes")
 
+    resume_training: bool = args.resume_path is not None
+    if resume_training:
+        if args.config_path is None:
+            raise ValueError("If --resume_path is provided, --config_path must also be provided.")
+        load_configs(args.config_path)  # Resume training with old config
+    else:  # Fresh training
+        if args.config_path is not None:
+            warnings.warn("--config_path is ignored during training unless --resume_path is also provided.")
+
     np.random.seed(config.SEED)
     torch.manual_seed(config.SEED)
     env: Env = Env()
     model_name: str = config.MODEL.lower()
     model: MARLModel = get_model(model_name)
 
-    # Setup logging directory
     model_log_dir: str = f"train_logs/{model_name}"
     if not os.path.exists(model_log_dir):
         os.makedirs(model_log_dir)
 
     logger: Logger = Logger(model_log_dir, timestamp)
-    resume_training: bool = args.resume_path is not None
-    if resume_training:
-        if args.config_path is None:
-            raise ValueError("If --resume_path is provided, --config_path must also be provided.")
-        else:
-            logger.load_configs(args.config_path)  # Resume training with old config
-    else:  # Fresh training
-        if args.config_path is not None:
-            warnings.warn("--config_path is ignored during training unless --resume_path is also provided.")
-        logger.log_configs()
+    if not resume_training:
+        logger.log_configs()  # Save config for fresh training
 
     total_step_count: int = 0  # for off policy models
     if resume_training:
@@ -67,19 +67,19 @@ def start_testing(args: argparse.Namespace):
     timestamp: str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     print(f"\n🚀 Testing started at {timestamp} for {args.num_episodes} episodes")
 
+    load_configs(args.config_path)
+
     np.random.seed(config.SEED)
     torch.manual_seed(config.SEED)
     env: Env = Env()
     model_name: str = config.MODEL.lower()
     model: MARLModel = get_model(model_name)
 
-    # Setup logging directory
     model_log_dir: str = f"test_logs/{model_name}"
     if not os.path.exists(model_log_dir):
         os.makedirs(model_log_dir)
 
     logger: Logger = Logger(model_log_dir, timestamp)
-    logger.load_configs(args.config_path)
 
     model.load(args.model_path)
     print(f"📥 Models loaded successfully from {args.model_path}")

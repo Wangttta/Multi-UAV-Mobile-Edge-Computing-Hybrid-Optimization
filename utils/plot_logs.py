@@ -47,20 +47,9 @@ def generate_plots(log_file: str, output_dir: str, output_file_prefix: str, time
         print(f"❌ Log file is empty: {log_file}")
         return
 
-    # Determine x-axis (episode or update)
-    if "update" in log_data[0]:
-        x_axis_key = "update"
-        x_label = "Update"
-    elif "episode" in log_data[0]:
-        x_axis_key = "episode"
-        x_label = "Episode"
-    else:
-        print("❌ Log file does not contain 'episode' or 'update' keys.")
-        return
-
     # Extract data
     parameters: dict = {
-        x_axis_key: [entry[x_axis_key] for entry in log_data],
+        "episode": [entry.get("episode") for entry in log_data],
         "reward": [entry.get("reward") for entry in log_data],
         "latency": [entry.get("latency") for entry in log_data],
         "energy": [entry.get("energy") for entry in log_data],
@@ -72,7 +61,7 @@ def generate_plots(log_file: str, output_dir: str, output_file_prefix: str, time
         "alpha_loss": [entry.get("alpha_loss") for entry in log_data],
     }
 
-    x_data = parameters[x_axis_key]
+    x_data = parameters["episode"]
 
     # Plot environment metrics
     metrics_to_plot = ["reward", "latency", "energy", "fairness", "offline_rate"]
@@ -84,9 +73,9 @@ def generate_plots(log_file: str, output_dir: str, output_file_prefix: str, time
             x_filtered = [x_data[i] for i in valid_indices]
             y_filtered = [y_data[i] for i in valid_indices]
 
-            title = f"{metric.replace('_', ' ').title()} vs {x_label}"
+            title = f"{metric.replace('_', ' ').title()} vs Episode"
             output_path = os.path.join(output_dir, f"{output_file_prefix}_{metric}_{timestamp}.png")
-            plot_metric(x_filtered, y_filtered, x_label, metric.title(), title, output_path, smoothing_window)
+            plot_metric(x_filtered, y_filtered, "Episode", metric.title(), title, output_path, smoothing_window)
 
     # Plot loss curves (if available)
     loss_metrics = ["actor_loss", "critic_loss", "entropy_loss", "alpha_loss"]
@@ -97,8 +86,8 @@ def generate_plots(log_file: str, output_dir: str, output_file_prefix: str, time
             x_filtered = [x_data[i] for i in valid_indices]
             y_filtered = [y_data[i] for i in valid_indices]
 
-            title = f"{metric.replace('_', ' ').title()} vs {x_label}"
+            title = f"{metric.replace('_', ' ').title()} vs Episode"
             output_path = os.path.join(output_dir, f"{output_file_prefix}_{metric}_{timestamp}.png")
-            plot_metric(x_filtered, y_filtered, x_label, metric.title(), title, output_path, smoothing_window)
+            plot_metric(x_filtered, y_filtered, "Episode", metric.title(), title, output_path, smoothing_window)
 
     print(f"✅ All plots saved to {output_dir}\n")

@@ -5,7 +5,7 @@ MODEL: str = "attention_matd3"  # options: 'maddpg', 'matd3', 'mappo', 'masac', 
 SEED: int = 42  # random seed for reproducibility
 np.random.seed(SEED)  # set numpy random seed
 STEPS_PER_EPISODE: int = 1000  # total T
-LOG_FREQ: int = 10  # episodes
+LOG_FREQ: int = 1  # episodes
 IMG_FREQ: int = 1000  # steps
 TEST_LOG_FREQ: int = 1  # episodes (for testing)
 TEST_IMG_FREQ: int = 100  # steps (for testing)
@@ -135,5 +135,5 @@ ALPHA_LR: float = 3e-4  # learning rate for the entropy temperature alpha
 
 # Attention Hyperparameters
 ATTN_HIDDEN_DIM: int = 64  # Embedding size for internal attention representations
-ATTN_NUM_HEADS: int = 4  # Number of attention heads
+ATTN_NUM_HEADS: int = 8  # Number of attention heads
 assert ATTN_HIDDEN_DIM % ATTN_NUM_HEADS == 0, f"ATTN_HIDDEN_DIM ({ATTN_HIDDEN_DIM}) must be divisible by ATTN_NUM_HEADS ({ATTN_NUM_HEADS})"

@@ -57,13 +57,7 @@ class Logger:
         self.config_file_path: str = os.path.join(self.log_dir, f"config_{timestamp}.json")
 
     def log_configs(self) -> None:
-        config_dict: dict = {
-            key: getattr(default_config, key)
-            for key in dir(default_config)
-            if key.isupper()
-            and not key.startswith("__")
-            and not callable(getattr(default_config, key))
-        }
+        config_dict: dict = {key: getattr(default_config, key) for key in dir(default_config) if key.isupper() and not key.startswith("__") and not callable(getattr(default_config, key))}
 
         # Custom serializer for numpy arrays
         def numpy_encoder(obj):
@@ -79,27 +73,12 @@ class Logger:
             json.dump(config_dict, f, indent=4, default=numpy_encoder)
         print(f"📝 Configs saved to {self.config_file_path}")
 
-    def load_configs(self, config_path: str) -> None:
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"❌ Config file not found: {config_path}")
-        with open(config_path, "r") as f:
-            config_dict = json.load(f)
-        for key, value in config_dict.items():
-            # Convert lists back to numpy arrays where appropriate
-            if isinstance(getattr(default_config, key, None), np.ndarray):
-                setattr(default_config, key, np.array(value))
-            else:
-                setattr(default_config, key, value)
-
-        print(f"✅ Configs loaded from {config_path}")
-
     def log_metrics(
         self,
         progress_step: int,
         log: Log,
         log_freq: int,
         elapsed_time: float,
-        name: str,
         losses: dict | None = None,
     ) -> None:
         """Log aggregated metrics to text and JSON files.
@@ -119,7 +98,7 @@ class Logger:
         energy_avg: float = float(np.mean(energies_slice))
         fairness_avg: float = float(np.mean(fairness_slice))
         offline_avg: float = float(np.mean(offline_slice))
-        
+
         # Prepare loss averages from the Log object if available; prefer explicit `losses` dict when provided
         def _safe_mean(lst: list) -> float | None:
             if not lst:
@@ -140,7 +119,7 @@ class Logger:
             critic_loss_val = losses.get("critic")
             critic_avg = float(critic_loss_val) if critic_loss_val is not None else None
             entropy_loss_val = losses.get("entropy")
-            entropy_avg = (float(entropy_loss_val) if entropy_loss_val is not None else None)
+            entropy_avg = float(entropy_loss_val) if entropy_loss_val is not None else None
             alpha_loss_val = losses.get("alpha")
             alpha_avg = float(alpha_loss_val) if alpha_loss_val is not None else None
         else:
@@ -162,23 +141,14 @@ class Logger:
 
         loss_str = " | ".join(loss_parts) + " | " if loss_parts else ""
 
-        log_msg: str = (
-            f"🔄 {name.title()} {progress_step} | "
-            f"Total Reward: {reward_avg:.3f} | "
-            f"Total Latency: {latency_avg:.3f} | "
-            f"Total Energy: {energy_avg:.3f} | "
-            f"Final Fairness: {fairness_avg:.3f} | "
-            f"Offline Rate: {offline_avg:.3f} | "
-            + loss_str
-            + f"Elapsed Time: {elapsed_time:.2f}s\n"
-        )
+        log_msg: str = f"🔄 Episode {progress_step} | " f"Total Reward: {reward_avg:.3f} | " f"Total Latency: {latency_avg:.3f} | " f"Total Energy: {energy_avg:.3f} | " f"Final Fairness: {fairness_avg:.3f} | " f"Offline Rate: {offline_avg:.3f} | " + loss_str + f"Elapsed Time: {elapsed_time:.2f}s\n"
 
         with open(self.log_file_path, "a", encoding="utf-8") as f:
             f.write(log_msg)
 
         # Prepare JSON entry, only include keys that are not None
         data_entry: dict = {
-            name.lower(): progress_step,
+            "episode": progress_step,
             "reward": reward_avg,
             "latency": latency_avg,
             "energy": energy_avg,
@@ -206,3 +176,18 @@ class Logger:
         json_data.append(data_entry)
         with open(self.json_file_path, "w") as f:
             json.dump(json_data, f, indent=4)
+
+
+def load_configs(config_path: str) -> None:
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"❌ Config file not found: {config_path}")
+    with open(config_path, "r") as f:
+        config_dict = json.load(f)
+    for key, value in config_dict.items():
+        # Convert lists back to numpy arrays where appropriate
+        if isinstance(getattr(default_config, key, None), np.ndarray):
+            setattr(default_config, key, np.array(value))
+        else:
+            setattr(default_config, key, value)
+
+    print(f"✅ Configs loaded from {config_path}")
