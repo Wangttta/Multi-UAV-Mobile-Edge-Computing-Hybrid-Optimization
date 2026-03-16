@@ -16,7 +16,7 @@ class ActorNetwork(AttentionActorBase):
         x: torch.Tensor = self.get_feature_embedding(obs)
         mean: torch.Tensor = torch.tanh(self.mean(x))
         log_std: torch.Tensor = torch.clamp(self.log_std, config.LOG_STD_MIN, config.LOG_STD_MAX)
-        std: torch.Tensor = torch.exp(log_std)
+        std: torch.Tensor = torch.exp(log_std).expand_as(mean)
         return Normal(mean, std)
 
 
@@ -28,18 +28,22 @@ class CriticNetwork(AttentionCriticBase):
 
     def forward(self, obs_tensor: torch.Tensor) -> torch.Tensor:
         """
-        Encodes observations once for the whole batch, then runs attention heads Num_Agents times.
+        Encodes observations once for the whole batch, then runs vectorized attention simultaneously for all agents.
         Args:
             obs_tensor: (Batch, Num_Agents, Obs_Dim)
         Returns:
             values: (Batch, Num_Agents)
         """
-        num_agents: int = obs_tensor.shape[1]
-
         # Run the heavy encoder once for all agents
         # (Batch, Num_Agents, Obs) -> (Batch, Num_Agents, Hidden)
         all_embeddings: torch.Tensor = self.get_all_embeddings(obs_tensor)
 
-        values_list: list[torch.Tensor] = [self.v_head(self.attend_to_others(all_embeddings, num_agents, agent_index=i)) for i in range(num_agents)]
+        # Vectorized attention for all agents simultaneously
+        # (Batch, Num_Agents, Hidden) -> (Batch, Num_Agents, Fusion_Dim)
+        combined: torch.Tensor = self.vectorized_attend_to_others(all_embeddings)
 
-        return torch.cat(values_list, dim=1)  # (Batch, Num_Agents)
+        # Pass the fused embeddings through the value head
+        # (Batch, Num_Agents, Fusion_Dim) -> (Batch, Num_Agents, 1) -> (Batch, Num_Agents)
+        values: torch.Tensor = self.v_head(combined).squeeze(-1)
+
+        return values

@@ -76,19 +76,19 @@ class Env:
         all_obs: list[np.ndarray] = []
         for uav in self._uavs:
             # Part 1: Own state (position and cache status)
-            own_pos: np.ndarray = uav.pos[:2] / np.array([config.AREA_WIDTH, config.AREA_HEIGHT])
+            own_pos: np.ndarray = uav.pos[:2] / np.array([config.AREA_WIDTH, config.AREA_HEIGHT], dtype=np.float32)
             own_cache: np.ndarray = uav.cache.astype(np.float32)
             own_state: np.ndarray = np.concatenate([own_pos, own_cache])
 
             # Part 2: Neighbor positions
-            neighbor_states: np.ndarray = np.zeros((config.MAX_UAV_NEIGHBORS, config.NEIGHBOR_OBS_DIM))
+            neighbor_states: np.ndarray = np.zeros((config.MAX_UAV_NEIGHBORS, config.NEIGHBOR_OBS_DIM), dtype=np.float32)
             neighbors: list[UAV] = sorted(uav.neighbors, key=lambda n: float(np.linalg.norm(uav.pos - n.pos)))[: config.MAX_UAV_NEIGHBORS]
             for i, neighbor in enumerate(neighbors):
                 relative_pos: np.ndarray = (neighbor.pos[:2] - uav.pos[:2]) / config.UAV_SENSING_RANGE
                 neighbor_states[i, :] = relative_pos
 
             # Part 3: State of associated UEs
-            ue_states: np.ndarray = np.zeros((config.MAX_ASSOCIATED_UES, config.UE_OBS_DIM))
+            ue_states: np.ndarray = np.zeros((config.MAX_ASSOCIATED_UES, config.UE_OBS_DIM), dtype=np.float32)
             ues: list[UE] = sorted(uav.current_covered_ues, key=lambda u: float(np.linalg.norm(uav.pos[:2] - u.pos[:2])))[: config.MAX_ASSOCIATED_UES]
             for i, ue in enumerate(ues):
                 delta_pos: np.ndarray = (ue.pos[:2] - uav.pos[:2]) / config.AREA_WIDTH
@@ -108,7 +108,7 @@ class Env:
 
     def _apply_actions_to_env(self, actions: np.ndarray) -> None:
         """Calculates next positions and resolves potential collisions iteratively."""
-        current_positions: np.ndarray = np.array([uav.pos[:2] for uav in self._uavs])
+        current_positions: np.ndarray = np.array([uav.pos[:2] for uav in self._uavs], dtype=np.float32)
         max_dist: float = config.UAV_SPEED * config.TIME_SLOT_DURATION
 
         # Interpret actions as a direct (x, y) vector
@@ -175,7 +175,7 @@ class Env:
         """Returns the reward and other metrics."""
         total_latency: float = sum(ue.latency_current_request if ue.assigned else config.NON_SERVED_LATENCY_PENALTY for ue in self._ues)
         total_energy: float = sum(uav.energy for uav in self._uavs)
-        sc_metrics: np.ndarray = np.array([ue.service_coverage for ue in self._ues])
+        sc_metrics: np.ndarray = np.array([ue.service_coverage for ue in self._ues], dtype=np.float32)
         jfi: float = 0.0
         if sc_metrics.size > 0 and np.sum(sc_metrics**2) > 0:
             jfi = (np.sum(sc_metrics) ** 2) / (sc_metrics.size * np.sum(sc_metrics**2))

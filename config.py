@@ -5,13 +5,13 @@ MODEL: str = "attention_matd3"  # options: 'maddpg', 'matd3', 'mappo', 'masac', 
 SEED: int = 42  # random seed for reproducibility
 np.random.seed(SEED)  # set numpy random seed
 STEPS_PER_EPISODE: int = 1000  # total T
-LOG_FREQ: int = 10  # episodes
+LOG_FREQ: int = 1  # episodes
 IMG_FREQ: int = 1000  # steps
 TEST_LOG_FREQ: int = 1  # episodes (for testing)
 TEST_IMG_FREQ: int = 100  # steps (for testing)
 
 # Simulation Parameters
-MBS_POS: np.ndarray = np.array([350.0, 350.0, 30.0])  # (X_mbs, Y_mbs, Z_mbs) in meters
+MBS_POS: np.ndarray = np.array([350.0, 350.0, 30.0], dtype=np.float32)  # (X_mbs, Y_mbs, Z_mbs) in meters
 NUM_UAVS: int = 5  # U
 NUM_UES: int = 100  # M
 AREA_WIDTH: int = 700  # X_max in meters
@@ -83,7 +83,7 @@ UE_STATIC_POWER: float = 0.05  # Idle power consumption in Watts
 
 # Model Parameters
 # Reward formula: reward = ALPHA_3*log(fairness) - ALPHA_1*log(latency) - ALPHA_2*log(energy) - ALPHA_4*log(1+offline_rate)
-# Then scaled by REWARD_SCALING_FACTOR. All log terms ∈ [0, log(max_value)] to keep rewards bounded.
+# Then scaled by REWARD_SCALING_FACTOR.
 ALPHA_1 = 1.0  # weightage for latency (negative term, higher = stronger penalty for latency)
 ALPHA_2 = 0.4  # weightage for energy (negative term, lower priority than latency)
 ALPHA_3 = 2.0  # weightage for fairness (positive term, encourage equal service)
@@ -97,10 +97,10 @@ OBS_DIM_SINGLE: int = SELF_OBS_DIM + (MAX_UAV_NEIGHBORS * NEIGHBOR_OBS_DIM) + (M
 ACTION_DIM: int = 2  # angle, distance from [-1, 1]
 MLP_HIDDEN_DIM: int = 128
 
-ACTOR_LR: float = 3e-4
-CRITIC_LR: float = 3e-4
-DISCOUNT_FACTOR: float = 0.99  # gamma
-UPDATE_FACTOR: float = 0.01  # tau
+ACTOR_LR: float = 9e-4
+CRITIC_LR: float = 8e-4
+DISCOUNT_FACTOR: float = 0.96  # gamma
+UPDATE_FACTOR: float = 0.012  # tau
 MAX_GRAD_NORM: float = 0.5  # maximum norm for gradient clipping to prevent exploding gradients
 LOG_STD_MAX: float = 2  # maximum log standard deviation for stochastic policies
 LOG_STD_MIN: float = -20  # minimum log standard deviation for stochastic policies
@@ -108,7 +108,7 @@ EPSILON: float = 1e-9  # small value to prevent division by zero
 
 # Off-policy algorithm hyperparameters
 REPLAY_BUFFER_SIZE: int = 10**6  # B
-REPLAY_BATCH_SIZE: int = 256  # minibatch size
+REPLAY_BATCH_SIZE: int = 128  # minibatch size
 INITIAL_RANDOM_STEPS: int = 5000  # steps of random actions for exploration
 LEARN_FREQ: int = 10  # steps to learn after
 
@@ -119,7 +119,7 @@ NOISE_DECAY_RATE: float = 0.995
 
 # MATD3 Specific Hyperparameters
 POLICY_UPDATE_FREQ: int = 2  # delayed policy update frequency
-TARGET_POLICY_NOISE: float = 0.2  # standard deviation of target policy smoothing noise.
+TARGET_POLICY_NOISE: float = 0.25  # standard deviation of target policy smoothing noise.
 NOISE_CLIP: float = 0.5  # range to clip target policy smoothing noise
 
 # MAPPO Specific Hyperparameters
@@ -135,5 +135,5 @@ ALPHA_LR: float = 3e-4  # learning rate for the entropy temperature alpha
 
 # Attention Hyperparameters
 ATTN_HIDDEN_DIM: int = 64  # Embedding size for internal attention representations
-ATTN_NUM_HEADS: int = 4  # Number of attention heads
+ATTN_NUM_HEADS: int = 8  # Number of attention heads
 assert ATTN_HIDDEN_DIM % ATTN_NUM_HEADS == 0, f"ATTN_HIDDEN_DIM ({ATTN_HIDDEN_DIM}) must be divisible by ATTN_NUM_HEADS ({ATTN_NUM_HEADS})"

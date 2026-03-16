@@ -30,7 +30,7 @@ class MARLModel(ABC):
         raise NotImplementedError("This method is required for on-policy algorithms.")
 
     @abstractmethod
-    def select_actions(self, observations: list[np.ndarray], exploration: bool) -> np.ndarray:
+    def select_actions(self, observations: np.ndarray, exploration: bool) -> np.ndarray:
         """
         Selects actions for all agents based on their observations.
         """

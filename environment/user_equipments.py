@@ -6,6 +6,7 @@ class UE:
     all_ids: np.ndarray
     global_ranks: np.ndarray
     id_to_rank_map: dict[int, int]
+    global_probs: np.ndarray
 
     @classmethod
     def initialize_ue_class(cls) -> None:
@@ -14,11 +15,11 @@ class UE:
         np.random.shuffle(cls.global_ranks)  # Currently random ranks assigned
         cls.id_to_rank_map = dict(zip(cls.all_ids, cls.global_ranks))  # Mapping from ID to rank
         zipf_denom: float = np.sum(1 / cls.global_ranks**config.ZIPF_BETA)
-        cls.global_probs: np.ndarray = (1 / cls.global_ranks**config.ZIPF_BETA) / zipf_denom
+        cls.global_probs = (1 / cls.global_ranks**config.ZIPF_BETA) / zipf_denom
 
     def __init__(self, ue_id: int) -> None:
         self.id: int = ue_id
-        self.pos: np.ndarray = np.array([np.random.uniform(0, config.AREA_WIDTH), np.random.uniform(0, config.AREA_HEIGHT), 0.0])
+        self.pos: np.ndarray = np.array([np.random.uniform(0, config.AREA_WIDTH), np.random.uniform(0, config.AREA_HEIGHT), 0.0], dtype=np.float32)
         self.battery_level: float = np.random.uniform(0.6, 1.0) * config.UE_BATTERY_CAPACITY  # Start at capacity between 60% to 100%
 
         self.current_request: tuple[int, int, int] = (0, 0, 0)  # Request : (req_type, req_size, req_id)
@@ -77,7 +78,7 @@ class UE:
 
     def _set_new_waypoint(self):
         """Set a new destination, speed, and wait time as per the Random Waypoint model."""
-        self._waypoint = np.array([np.random.uniform(0, config.AREA_WIDTH), np.random.uniform(0, config.AREA_HEIGHT)])
+        self._waypoint = np.array([np.random.uniform(0, config.AREA_WIDTH), np.random.uniform(0, config.AREA_HEIGHT)], dtype=np.float32)
         self._wait_time = np.random.randint(0, config.UE_MAX_WAIT_TIME + 1)
 
     def update_battery(self, harv_energy: float, ue_transmit_time: float) -> None:

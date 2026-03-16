@@ -21,14 +21,15 @@ class ActorNetwork(nn.Module):
         # Output the mean of the distribution. Tanh activation scales it to [-1, 1].
         mean: torch.Tensor = torch.tanh(self.mean(x))
         log_std: torch.Tensor = torch.clamp(self.log_std, config.LOG_STD_MIN, config.LOG_STD_MAX)
-        std: torch.Tensor = torch.exp(log_std)
+        std: torch.Tensor = torch.exp(log_std).expand_as(mean)
         return Normal(mean, std)
 
 
 class CriticNetwork(nn.Module):
-    def __init__(self, state_dim: int) -> None:
+    def __init__(self, state_dim: int, num_agents: int) -> None:
         super().__init__()
-        self.fc1: nn.Linear = layer_init(nn.Linear(state_dim, config.MLP_HIDDEN_DIM))
+        input_dim: int = state_dim + num_agents
+        self.fc1: nn.Linear = layer_init(nn.Linear(input_dim, config.MLP_HIDDEN_DIM))
         self.ln1: nn.LayerNorm = nn.LayerNorm(config.MLP_HIDDEN_DIM)
         self.fc2: nn.Linear = layer_init(nn.Linear(config.MLP_HIDDEN_DIM, config.MLP_HIDDEN_DIM))
         self.ln2: nn.LayerNorm = nn.LayerNorm(config.MLP_HIDDEN_DIM)

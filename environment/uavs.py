@@ -7,7 +7,7 @@ import numpy as np
 
 def _get_belief_probability(file_id: int, neighbor_id: int) -> float:
     """Returns the estimated probability P_{v,i} that a neighbor has file_i."""
-    rank = UE.id_to_rank_map[file_id]
+    rank: int = UE.id_to_rank_map[file_id]
     c_hat_v: float = config.UAV_STORAGE_CAPACITY[neighbor_id] / config.AVG_FILE_SIZE
     exponent: float = config.PROB_GAMMA * (rank - c_hat_v)
     probability: float = 1.0 / (1.0 + np.exp(exponent))
@@ -35,7 +35,7 @@ def _try_add_file_to_cache(uav: UAV, file_id: int) -> None:
 class UAV:
     def __init__(self, uav_id: int) -> None:
         self.id: int = uav_id
-        self.pos: np.ndarray = np.array([np.random.uniform(0, config.AREA_WIDTH), np.random.uniform(0, config.AREA_HEIGHT), config.UAV_ALTITUDE])
+        self.pos: np.ndarray = np.array([np.random.uniform(0, config.AREA_WIDTH), np.random.uniform(0, config.AREA_HEIGHT), config.UAV_ALTITUDE], dtype=np.float32)
 
         self._dist_moved: float = 0.0  # Distance moved in the current time slot
         self._current_covered_ues: list[UE] = []
@@ -48,8 +48,8 @@ class UAV:
         # Cache and request tracking
         self.cache: np.ndarray = np.zeros(config.NUM_FILES, dtype=bool)
         self._working_cache: np.ndarray = np.zeros(config.NUM_FILES, dtype=bool)
-        self._freq_counts: np.ndarray = np.zeros(config.NUM_FILES)
-        self._ema_scores: np.ndarray = np.zeros(config.NUM_FILES)
+        self._freq_counts: np.ndarray = np.zeros(config.NUM_FILES, dtype=np.float32)
+        self._ema_scores: np.ndarray = np.zeros(config.NUM_FILES, dtype=np.float32)
 
         self._uav_mbs_rate: float = 0.0
 
@@ -70,7 +70,7 @@ class UAV:
         self._current_covered_ues = []
         self._neighbors = []
         self._current_service_request_count = 0
-        self._freq_counts = np.zeros(config.NUM_FILES)
+        self._freq_counts = np.zeros(config.NUM_FILES, dtype=np.float32)
         self._energy_current_slot = 0.0
         self.collision_violation = False
         self.boundary_violation = False
@@ -177,7 +177,7 @@ class UAV:
                 # Neighbor Load: They broadcasted 'initial_load'. We add +1 because "If I come, I add to the pile."
                 neigh_load: int = neighbor._current_service_request_count + 1
                 assert neigh_load > 0
-                est_comp_latency: float = cpu_cycles / (config.UAV_COMPUTING_CAPACITY[neighbor.id] / neigh_load)
+                est_comp_latency = cpu_cycles / (config.UAV_COMPUTING_CAPACITY[neighbor.id] / neigh_load)
                 uav_uav_upload_latency: float = req_size / uav_uav_rate
                 exp_neighbor_latency = ue_uav_upload_latency + uav_uav_upload_latency + exp_neighbor_fetch_latency + est_comp_latency  # Overwrite for service
 
@@ -213,7 +213,7 @@ class UAV:
             uav_mbs_rate: float = comms.calculate_uav_mbs_rate(comms.calculate_channel_gain(target_uav.pos, config.MBS_POS))
             uav_uav_upload_latency: float = req_size / uav_uav_rate
 
-            fetch_latency: float = 0.0
+            fetch_latency = 0.0
             if not target_uav.cache[req_id]:
                 fetch_latency = file_size / uav_mbs_rate
                 _try_add_file_to_cache(target_uav, req_id)
@@ -249,7 +249,7 @@ class UAV:
             uav_mbs_rate: float = comms.calculate_uav_mbs_rate(comms.calculate_channel_gain(target_uav.pos, config.MBS_POS))
             uav_uav_download_latency: float = file_size / uav_uav_rate
 
-            fetch_latency: float = 0.0
+            fetch_latency = 0.0
             if not target_uav.cache[req_id]:
                 fetch_latency = file_size / uav_mbs_rate
                 _try_add_file_to_cache(target_uav, req_id)
@@ -276,8 +276,8 @@ class UAV:
 
     def gdsf_cache_update(self) -> None:
         """Update cache using the GDSF caching policy at a longer timescale."""
-        priority_scores = self._ema_scores / config.FILE_SIZES
-        sorted_file_ids = np.argsort(-priority_scores)
+        priority_scores: np.ndarray = self._ema_scores / config.FILE_SIZES
+        sorted_file_ids: np.ndarray = np.argsort(-priority_scores)
         self.cache = np.zeros(config.NUM_FILES, dtype=bool)
         used_space = 0.0
         for file_id in sorted_file_ids:
@@ -290,10 +290,10 @@ class UAV:
 
     def update_energy_consumption(self) -> None:
         """Update UAV energy consumption for the current time slot."""
-        time_moving = self._dist_moved / config.UAV_SPEED
-        time_hovering = config.TIME_SLOT_DURATION - time_moving
-        fly_energy = config.POWER_MOVE * time_moving + config.POWER_HOVER * time_hovering
+        time_moving: float = self._dist_moved / config.UAV_SPEED
+        time_hovering: float = config.TIME_SLOT_DURATION - time_moving
+        fly_energy: float = config.POWER_MOVE * time_moving + config.POWER_HOVER * time_hovering
         self._energy_current_slot += fly_energy
-        has_energy_request = any(ue.current_request[0] == 2 for ue in self._current_covered_ues)
+        has_energy_request: bool = any(ue.current_request[0] == 2 for ue in self._current_covered_ues)
         if has_energy_request:
             self._energy_current_slot += config.WPT_TRANSMIT_POWER * config.TIME_SLOT_DURATION
