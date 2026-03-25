@@ -20,6 +20,14 @@ TIME_SLOT_DURATION: float = 1.0  # tau in seconds
 UE_MAX_DIST: float = 15.0  # d_max^UE in meters
 UE_MAX_WAIT_TIME: int = 10  # in time slots
 
+USE_HOTSPOTS: bool = False  # using hotspots or not
+NUM_HOTSPOTS: int = 2  # number of hotspots
+HOTSPOT_RADIUS: float = 100.0  # radius of each hotspot in meters
+assert NUM_HOTSPOTS * HOTSPOT_RADIUS * 2 <= min(AREA_WIDTH, AREA_HEIGHT), "Hotspots cannot fit in the area without overlap."
+HOTSPOT_SEPARATION: float = 400.0  # minimum separation between hotspots in meters
+assert HOTSPOT_SEPARATION >= 2 * HOTSPOT_RADIUS, "Hotspot separation must be at least twice the hotspot radius to avoid overlap."
+HOTSPOT_UE_PROB: float = 0.8  # probability that a UE is in a hotspot
+
 # UAV Parameters
 UAV_ALTITUDE: int = 100  # H in meters
 UAV_SPEED: float = 15.0  # v^UAV in m/s

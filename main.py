@@ -1,7 +1,7 @@
 from marl_models.base_model import MARLModel
 from environment.env import Env
 from marl_models.utils import get_model, load_step_count
-from train import train_on_policy, train_off_policy, train_random
+from train import train_on_policy, train_off_policy, train_baselines
 from test import test_model
 from utils.logger import Logger, load_configs
 from utils.plot_logs import generate_plots
@@ -54,8 +54,8 @@ def start_training(args: argparse.Namespace):
         train_off_policy(env, model, logger, args.num_episodes, total_step_count)
     elif model_name in ["mappo", "attention_mappo"]:
         train_on_policy(env, model, logger, args.num_episodes)
-    else:  # "random"
-        train_random(env, model, logger, args.num_episodes)
+    else:  # "random", "static", "nearest_greedy", "uncoordinated_greedy"
+        train_baselines(env, model, logger, args.num_episodes)
 
     print("✅ Training Completed!\n")
     print("📊 Generating plots...")

@@ -7,6 +7,7 @@ class UE:
     global_ranks: np.ndarray
     id_to_rank_map: dict[int, int]
     global_probs: np.ndarray
+    hotspot_centers: list[np.ndarray]
 
     @classmethod
     def initialize_ue_class(cls) -> None:
@@ -17,9 +18,41 @@ class UE:
         zipf_denom: float = np.sum(1 / cls.global_ranks**config.ZIPF_BETA)
         cls.global_probs = (1 / cls.global_ranks**config.ZIPF_BETA) / zipf_denom
 
+        if getattr(config, "USE_HOTSPOTS", False):
+            cls.generate_hotspots()
+
+    @classmethod
+    def generate_hotspots(cls) -> None:
+        """Randomizes the locations of the hotspots across the map."""
+        cls.hotspot_centers = []
+        max_retries = 100  # Safety limit for rejection sampling
+
+        for _ in range(config.NUM_HOTSPOTS):
+            valid: bool = False
+            new_center: np.ndarray = np.zeros(2, dtype=np.float32)
+            retries: int = 0
+            while not valid and retries < max_retries:
+                hx: float = np.random.uniform(config.HOTSPOT_RADIUS, config.AREA_WIDTH - config.HOTSPOT_RADIUS)
+                hy: float = np.random.uniform(config.HOTSPOT_RADIUS, config.AREA_HEIGHT - config.HOTSPOT_RADIUS)
+                new_center = np.array([hx, hy], dtype=np.float32)
+
+                if not cls.hotspot_centers:
+                    valid = True
+                else:
+                    distances: np.ndarray = np.linalg.norm(np.array(cls.hotspot_centers) - new_center, axis=1)
+                    if np.min(distances) > config.HOTSPOT_SEPARATION:
+                        valid = True
+                retries += 1
+
+            cls.hotspot_centers.append(new_center)
+
     def __init__(self, ue_id: int) -> None:
         self.id: int = ue_id
         self.pos: np.ndarray = np.array([np.random.uniform(0, config.AREA_WIDTH), np.random.uniform(0, config.AREA_HEIGHT), 0.0], dtype=np.float32)
+        self.is_hotspot_user = getattr(config, "USE_HOTSPOTS", False) and (self.id < config.NUM_UES * getattr(config, "HOTSPOT_UE_PROB", 0.0))
+        if self.is_hotspot_user:
+            self.pos[:2] = self._get_position_in_hotspot()
+
         self.battery_level: float = np.random.uniform(0.6, 1.0) * config.UE_BATTERY_CAPACITY  # Start at capacity between 60% to 100%
 
         self.current_request: tuple[int, int, int] = (0, 0, 0)  # Request : (req_type, req_size, req_id)
@@ -51,6 +84,15 @@ class UE:
             move_vector = (direction_vec / distance_to_waypoint) * config.UE_MAX_DIST
             self.pos[:2] += move_vector
 
+    def _get_position_in_hotspot(self) -> np.ndarray:
+        """Generates a random position strictly within this UE's assigned hotspot."""
+        angle: float = np.random.uniform(0, 2 * np.pi)
+        r: float = config.HOTSPOT_RADIUS * np.sqrt(np.random.uniform(0, 1))
+        offset: np.ndarray = r * np.array([np.cos(angle), np.sin(angle)], dtype=np.float32)
+        center: np.ndarray = UE.hotspot_centers[self.id % config.NUM_HOTSPOTS]
+        pos: np.ndarray = np.clip(center + offset, [0, 0], [config.AREA_WIDTH, config.AREA_HEIGHT])
+        return pos.astype(np.float32)
+
     def generate_request(self) -> None:
         """Generates a new request tuple for the current time slot."""
 
@@ -78,7 +120,12 @@ class UE:
 
     def _set_new_waypoint(self):
         """Set a new destination, speed, and wait time as per the Random Waypoint model."""
-        self._waypoint = np.array([np.random.uniform(0, config.AREA_WIDTH), np.random.uniform(0, config.AREA_HEIGHT)], dtype=np.float32)
+        # If hotspots are active, the new waypoint MUST also be inside the hotspot!
+        if self.is_hotspot_user:
+            self._waypoint = self._get_position_in_hotspot()
+        else:
+            self._waypoint = np.array([np.random.uniform(0, config.AREA_WIDTH), np.random.uniform(0, config.AREA_HEIGHT)], dtype=np.float32)
+
         self._wait_time = np.random.randint(0, config.UE_MAX_WAIT_TIME + 1)
 
     def update_battery(self, harv_energy: float, ue_transmit_time: float) -> None:

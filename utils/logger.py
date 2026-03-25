@@ -11,7 +11,7 @@ class Log:
         self.energies: list[float] = []
         self.fairness_scores: list[float] = []
         self.offline_rates: list[float] = []
-        # Training losses (optional, may be empty for random baseline)
+        # Training losses (optional, may be empty for baselines)
         self.actor_losses: list[float | None] = []
         self.critic_losses: list[float | None] = []
         self.entropy_losses: list[float | None] = []

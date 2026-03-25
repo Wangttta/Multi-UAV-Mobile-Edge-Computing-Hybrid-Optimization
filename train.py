@@ -224,12 +224,15 @@ def train_off_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: i
     return float(np.mean(recent_rewards[-max(1, int(num_episodes * 0.1)) :]))
 
 
-def train_random(env: Env, model: MARLModel, logger: Logger, num_episodes: int) -> float:
+def train_baselines(env: Env, model: MARLModel, logger: Logger, num_episodes: int) -> float:
     start_time: float = time.time()
     episode_log: Log = Log()
 
     for episode in range(1, num_episodes + 1):
-        obs = env.reset()
+        if hasattr(model, "static_positions") and model.static_positions is not None:
+            obs = env.reset(initial_positions=model.static_positions)
+        else:
+            obs = env.reset()
         episode_reward: float = 0.0
         episode_latency: float = 0.0
         episode_energy: float = 0.0
@@ -262,4 +265,4 @@ def train_random(env: Env, model: MARLModel, logger: Logger, num_episodes: int) 
             elapsed_time: float = time.time() - start_time
             logger.log_metrics(episode, episode_log, config.LOG_FREQ, elapsed_time, losses=None)
 
-    return 0.0  # Random training does not need tuning
+    return 0.0  # Baseline training does not need tuning
