@@ -24,11 +24,46 @@ def _get_computing_latency_and_energy(uav: UAV, cpu_cycles: float) -> tuple[floa
 
 
 def _try_add_file_to_cache(uav: UAV, file_id: int) -> None:
-    """Try to add a file to UAV cache if there's enough space."""
+    """Try to add a file to UAV cache if there's enough space, or evict based on policy."""
+    policy: str = getattr(config, "CACHE_POLICY", "GDSF")
+    if policy == "NO_CACHE":
+        return
+
     if uav._working_cache[file_id]:
         return  # Already in cache
+
+    file_size: int = config.FILE_SIZES[file_id]
+
+    # GDSF only adds if there's space (eviction is handled periodically via gdsf_cache_update)
+    if policy == "GDSF":
+        used_space: int = np.sum(uav._working_cache * config.FILE_SIZES)
+        if used_space + file_size <= config.UAV_STORAGE_CAPACITY[uav.id]:
+            uav._working_cache[file_id] = True
+        return
+
+    # LRU, LFU, and RANDOM update reactively (on-demand eviction)
+    if file_size > config.UAV_STORAGE_CAPACITY[uav.id]:
+        return  # Can't fit even if cache is empty, so skip caching
     used_space: int = np.sum(uav._working_cache * config.FILE_SIZES)
-    if used_space + config.FILE_SIZES[file_id] <= config.UAV_STORAGE_CAPACITY[uav.id]:
+    while used_space + file_size > config.UAV_STORAGE_CAPACITY[uav.id]:
+        cached_indices: np.ndarray = np.where(uav._working_cache)[0]
+        if len(cached_indices) == 0:
+            break  # Cache is empty but file still doesn't fit
+
+        evict_idx: int = -1
+        if policy == "LRU":
+            evict_idx = cached_indices[np.argmin(uav._last_access_time[cached_indices])]
+        elif policy == "LFU":
+            evict_idx = cached_indices[np.argmin(uav._cumulative_freq_counts[cached_indices])]
+        elif policy == "RANDOM":
+            evict_idx = np.random.choice(cached_indices)
+        else:
+            raise ValueError(f"Unknown cache policy: {policy}")
+
+        uav._working_cache[evict_idx] = False
+        used_space -= config.FILE_SIZES[evict_idx]
+
+    if used_space + file_size <= config.UAV_STORAGE_CAPACITY[uav.id]:
         uav._working_cache[file_id] = True
 
 
@@ -50,6 +85,12 @@ class UAV:
         self._working_cache: np.ndarray = np.zeros(config.NUM_FILES, dtype=bool)
         self._freq_counts: np.ndarray = np.zeros(config.NUM_FILES, dtype=np.float32)
         self._ema_scores: np.ndarray = np.zeros(config.NUM_FILES, dtype=np.float32)
+
+        self._last_access_time: np.ndarray = np.zeros(config.NUM_FILES, dtype=float)
+        self._cumulative_freq_counts: np.ndarray = np.zeros(config.NUM_FILES, dtype=int)
+        self._local_timer: int = 0
+        self.cache_hits_step: int = 0
+        self.total_reqs_step: int = 0
 
         self._uav_mbs_rate: float = 0.0
 
@@ -74,6 +115,8 @@ class UAV:
         self._energy_current_slot = 0.0
         self.collision_violation = False
         self.boundary_violation = False
+        self.cache_hits_step = 0
+        self.total_reqs_step = 0
 
     def update_position(self, next_pos: np.ndarray) -> None:
         """Update the UAV's position to the new location chosen by the MARL agent."""
@@ -110,13 +153,21 @@ class UAV:
                 self._process_energy_request(ue)
                 continue
 
+            self.total_reqs_step += 1  # not counting energy requests for CHR
+
             ue_uav_rate: float = comms.calculate_ue_uav_rate(comms.calculate_channel_gain(ue.pos, self.pos), len(self._current_covered_ues))
 
             best_target_idx, best_target_uav = self._decide_offloading_target(ue.current_request, ue_uav_rate)
 
             self._freq_counts[req_id] += 1  # I got a request for this file
+            self._local_timer += 1
+            self._last_access_time[req_id] = self._local_timer
+            self._cumulative_freq_counts[req_id] += 1
             if best_target_idx == 1 and best_target_uav is not None:  # Request also seen by collaborating UAV
                 best_target_uav._freq_counts[req_id] += 1
+                best_target_uav._local_timer += 1
+                best_target_uav._last_access_time[req_id] = best_target_uav._local_timer
+                best_target_uav._cumulative_freq_counts[req_id] += 1
 
             if req_type == 0:
                 if best_target_idx != 0:
@@ -164,27 +215,28 @@ class UAV:
             best_exp_latency = exp_mbs_latency
             best_target_idx = 2
 
-        # Collaborating UAV Expected Latency
-        for neighbor in self._neighbors:
-            belief_prob: float = _get_belief_probability(req_id, neighbor.id)
+        if getattr(config, "ALLOW_COLLABORATION", True):
+            # Collaborating UAV Expected Latency
+            for neighbor in self._neighbors:
+                belief_prob: float = _get_belief_probability(req_id, neighbor.id)
 
-            uav_uav_rate: float = comms.calculate_uav_uav_rate(comms.calculate_channel_gain(self.pos, neighbor.pos))
-            uav_mbs_rate: float = comms.calculate_uav_mbs_rate(comms.calculate_channel_gain(neighbor.pos, config.MBS_POS))
-            uav_uav_download_latency: float = file_size / uav_uav_rate
-            exp_neighbor_fetch_latency: float = (1.0 - belief_prob) * (file_size / uav_mbs_rate)  # For both
-            exp_neighbor_latency: float = exp_neighbor_fetch_latency + uav_uav_download_latency + ue_uav_download_latency  # For content
-            if req_type == 0:  # Service
-                # Neighbor Load: They broadcasted 'initial_load'. We add +1 because "If I come, I add to the pile."
-                neigh_load: int = neighbor._current_service_request_count + 1
-                assert neigh_load > 0
-                est_comp_latency = cpu_cycles / (config.UAV_COMPUTING_CAPACITY[neighbor.id] / neigh_load)
-                uav_uav_upload_latency: float = req_size / uav_uav_rate
-                exp_neighbor_latency = ue_uav_upload_latency + uav_uav_upload_latency + exp_neighbor_fetch_latency + est_comp_latency  # Overwrite for service
+                uav_uav_rate: float = comms.calculate_uav_uav_rate(comms.calculate_channel_gain(self.pos, neighbor.pos))
+                uav_mbs_rate: float = comms.calculate_uav_mbs_rate(comms.calculate_channel_gain(neighbor.pos, config.MBS_POS))
+                uav_uav_download_latency: float = file_size / uav_uav_rate
+                exp_neighbor_fetch_latency: float = (1.0 - belief_prob) * (file_size / uav_mbs_rate)  # For both
+                exp_neighbor_latency: float = exp_neighbor_fetch_latency + uav_uav_download_latency + ue_uav_download_latency  # For content
+                if req_type == 0:  # Service
+                    # Neighbor Load: They broadcasted 'initial_load'. We add +1 because "If I come, I add to the pile."
+                    neigh_load: int = neighbor._current_service_request_count + 1
+                    assert neigh_load > 0
+                    est_comp_latency = cpu_cycles / (config.UAV_COMPUTING_CAPACITY[neighbor.id] / neigh_load)
+                    uav_uav_upload_latency: float = req_size / uav_uav_rate
+                    exp_neighbor_latency = ue_uav_upload_latency + uav_uav_upload_latency + exp_neighbor_fetch_latency + est_comp_latency  # Overwrite for service
 
-            if exp_neighbor_latency < best_exp_latency:
-                best_exp_latency = exp_neighbor_latency
-                best_target_idx = 1
-                best_target_uav = neighbor
+                if exp_neighbor_latency < best_exp_latency:
+                    best_exp_latency = exp_neighbor_latency
+                    best_target_idx = 1
+                    best_target_uav = neighbor
 
         assert best_exp_latency >= 0.0
         return best_target_idx, best_target_uav
@@ -202,6 +254,8 @@ class UAV:
             if not self.cache[req_id]:
                 fetch_latency = file_size / self._uav_mbs_rate
                 _try_add_file_to_cache(self, req_id)
+            else:
+                self.cache_hits_step += 1
 
             comp_latency, comp_energy = _get_computing_latency_and_energy(self, cpu_cycles)
             ue.latency_current_request = ue_uav_upload_latency + fetch_latency + comp_latency
@@ -217,6 +271,8 @@ class UAV:
             if not target_uav.cache[req_id]:
                 fetch_latency = file_size / uav_mbs_rate
                 _try_add_file_to_cache(target_uav, req_id)
+            else:
+                target_uav.cache_hits_step += 1
 
             comp_latency, comp_energy = _get_computing_latency_and_energy(target_uav, cpu_cycles)
             ue.latency_current_request = ue_uav_upload_latency + uav_uav_upload_latency + fetch_latency + comp_latency
@@ -240,6 +296,8 @@ class UAV:
             if not self.cache[req_id]:
                 fetch_latency = file_size / self._uav_mbs_rate
                 _try_add_file_to_cache(self, req_id)
+            else:
+                self.cache_hits_step += 1
 
             ue.latency_current_request = fetch_latency + ue_uav_download_latency
 
@@ -253,6 +311,8 @@ class UAV:
             if not target_uav.cache[req_id]:
                 fetch_latency = file_size / uav_mbs_rate
                 _try_add_file_to_cache(target_uav, req_id)
+            else:
+                target_uav.cache_hits_step += 1
 
             ue.latency_current_request = fetch_latency + uav_uav_download_latency + ue_uav_download_latency
             _try_add_file_to_cache(self, req_id)  # Since it was a miss, try to add to associated UAV's cache as well in background
@@ -276,6 +336,8 @@ class UAV:
 
     def gdsf_cache_update(self) -> None:
         """Update cache using the GDSF caching policy at a longer timescale."""
+        if getattr(config, "CACHE_POLICY", "GDSF") != "GDSF":
+            return  # LRU/LFU/Random update reactively, No Cache does nothing
         priority_scores: np.ndarray = self._ema_scores / config.FILE_SIZES
         sorted_file_ids: np.ndarray = np.argsort(-priority_scores)
         self.cache = np.zeros(config.NUM_FILES, dtype=bool)

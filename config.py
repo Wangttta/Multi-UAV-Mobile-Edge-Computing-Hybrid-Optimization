@@ -1,7 +1,7 @@
 import numpy as np
 
 # Training Parameters
-MODEL: str = "attention_matd3"  # options: 'maddpg', 'matd3', 'mappo', 'masac', 'attention_<model>', 'random'
+MODEL: str = "attention_matd3"  # options: 'maddpg', 'matd3', 'mappo', 'masac', 'attention_<model>', 'random', 'nearest_greedy'
 SEED: int = 42  # random seed for reproducibility
 np.random.seed(SEED)  # set numpy random seed
 STEPS_PER_EPISODE: int = 1000  # total T
@@ -145,3 +145,7 @@ ALPHA_LR: float = 3e-4  # learning rate for the entropy temperature alpha
 ATTN_HIDDEN_DIM: int = 64  # Embedding size for internal attention representations
 ATTN_NUM_HEADS: int = 8  # Number of attention heads
 assert ATTN_HIDDEN_DIM % ATTN_NUM_HEADS == 0, f"ATTN_HIDDEN_DIM ({ATTN_HIDDEN_DIM}) must be divisible by ATTN_NUM_HEADS ({ATTN_NUM_HEADS})"
+
+# Cache Ablation Setting
+CACHE_POLICY: str = "GDSF"  # Options: "GDSF", "LRU", "LFU", "RANDOM", "NO_CACHE"
+ALLOW_COLLABORATION: bool = True  # whether UAVs can collaborate to serve UEs
