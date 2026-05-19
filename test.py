@@ -50,7 +50,6 @@ def test_model(env: Env, model: MARLModel, logger: Logger, num_episodes: int) ->
 
         episode_chr: float = episode_hits / episode_requests if episode_requests > 0 else 0.0
         episode_log.append(episode_reward, episode_latency, episode_energy, episode_fairness, episode_offline_rate, episode_chr)
-        # episode_log.append(episode_reward, episode_latency, episode_energy, episode_fairness, episode_offline_rate)
         if episode % config.TEST_LOG_FREQ == 0:
             elapsed_time: float = time.time() - start_time
             logger.log_metrics(episode, episode_log, config.TEST_LOG_FREQ, elapsed_time)

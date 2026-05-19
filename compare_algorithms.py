@@ -45,6 +45,14 @@ def main():
     )
 
     parser.add_argument(
+        "--num_uavs",
+        nargs="+",
+        type=int,
+        required=True,
+        help="List of UAV counts for each run (must match --logs length)",
+    )
+
+    parser.add_argument(
         "--output",
         default="comparative_plots",
         help="Output directory for plots (default: comparative_plots)",
@@ -64,15 +72,30 @@ def main():
         print("❌ Error: Number of --logs must match number of --names")
         sys.exit(1)
 
+    if len(args.logs) != len(args.num_uavs):
+        print("❌ Error: Number of --logs must match number of --num-uavs")
+        sys.exit(1)
+
+    if any(n <= 0 for n in args.num_uavs):
+        print("❌ Error: All --num-uavs values must be positive")
+        sys.exit(1)
+
     print("\n" + "=" * 60)
     print("  Comparative Analysis Tool")
     print("=" * 60)
     print(f"Algorithms: {', '.join(args.names)}")
+    print(f"Num UAVs: {', '.join(str(n) for n in args.num_uavs)}")
     print(f"Output directory: {args.output}")
     print(f"Smoothing window: {args.smoothing}")
     print("=" * 60 + "\n")
 
-    compare_algorithms(args.logs, args.names, args.output, smoothing_window=args.smoothing)
+    compare_algorithms(
+        args.logs,
+        args.names,
+        args.num_uavs,
+        args.output,
+        smoothing_window=args.smoothing,
+    )
 
 
 if __name__ == "__main__":

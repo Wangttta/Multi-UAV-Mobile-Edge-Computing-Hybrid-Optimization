@@ -44,7 +44,7 @@ def _try_add_file_to_cache(uav: UAV, file_id: int) -> None:
     # LRU, LFU, and RANDOM update reactively (on-demand eviction)
     if file_size > config.UAV_STORAGE_CAPACITY[uav.id]:
         return  # Can't fit even if cache is empty, so skip caching
-    used_space: int = np.sum(uav._working_cache * config.FILE_SIZES)
+    used_space = np.sum(uav._working_cache * config.FILE_SIZES)
     while used_space + file_size > config.UAV_STORAGE_CAPACITY[uav.id]:
         cached_indices: np.ndarray = np.where(uav._working_cache)[0]
         if len(cached_indices) == 0:

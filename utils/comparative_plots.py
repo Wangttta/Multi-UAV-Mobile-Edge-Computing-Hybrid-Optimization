@@ -19,24 +19,28 @@ class ComparativePlotter:
         self.smoothing_window = smoothing_window
         self.dpi = dpi
         self.colors = [
-            "#1f77b4",
             "#ff7f0e",
-            "#2ca02c",
-            "#d62728",
-            "#9467bd",
-            "#8c564b",
-            "#e377c2",
-            "#7f7f7f",
+            "#155a15",
+            "#ad2323",
+            "#145889",
+            "#481d6f",
+            "#7e493e",
+            "#e447b5",
+            "#575454",
         ]
         self.linestyles = ["-"]
         self.data: Dict[str, Dict] = {}
+        # Metrics that scale with the number of UAVs and should be normalized
+        # to support fair 5-UAV vs 10-UAV comparisons.
+        self.per_uav_metrics = {"reward", "latency", "energy"}
 
-    def load_run(self, log_dir: str, algorithm_name: str) -> bool:
+    def load_run(self, log_dir: str, algorithm_name: str, num_uavs: int) -> bool:
         """Load log data from a training run directory.
 
         Args:
             log_dir: Path to the log directory containing log_data_*.json
             algorithm_name: Name of the algorithm (for labeling)
+            num_uavs: Number of UAVs used in the run
 
         Returns:
             True if load successful, False otherwise
@@ -58,11 +62,16 @@ class ComparativePlotter:
             print(f"❌ Log file is empty: {log_file}")
             return False
 
-        self.data[algorithm_name] = self._process_data(log_data)
+        if num_uavs <= 0:
+            print(f"❌ num_uavs must be positive for {algorithm_name}, got {num_uavs}")
+            return False
+
+        self.data[algorithm_name] = self._process_data(log_data, num_uavs)
+        self.data[algorithm_name]["num_uavs"] = num_uavs
         print(f"✅ Loaded {algorithm_name} from {log_file}")
         return True
 
-    def _process_data(self, log_data: List[Dict]) -> Dict[str, Any]:
+    def _process_data(self, log_data: List[Dict], num_uavs: int) -> Dict[str, Any]:
         """Process raw log data and extract metrics."""
         processed: Dict[str, Any] = {}
 
@@ -88,6 +97,17 @@ class ComparativePlotter:
 
         for metric in metrics:
             values = [entry.get(metric) for entry in log_data]
+            if metric in self.per_uav_metrics:
+                if metric == "latency":
+                    values = [
+                        (value / (num_uavs * 20)) if value is not None else None
+                        for value in values
+                    ]
+                else:
+                    values = [
+                        (value / num_uavs) if value is not None else None
+                        for value in values
+                    ]
             # Filter out None values but keep track of valid indices
             processed[metric] = values
 
@@ -130,6 +150,17 @@ class ComparativePlotter:
             return
 
         has_data = False
+        # compute global x-axis range across all algorithms for this metric
+        x_vals_all = []
+        for data in self.data.values():
+            key = "update" if "update" in data else "episode"
+            x_vals_all.extend([v for v in data.get(key, []) if v is not None])
+        if x_vals_all:
+            x_min_global = float(min(x_vals_all))
+            x_max_global = float(max(x_vals_all))
+        else:
+            x_min_global = None
+            x_max_global = None
         for idx, (algo_name, data) in enumerate(self.data.items()):
             if metric not in data:
                 continue
@@ -143,29 +174,67 @@ class ComparativePlotter:
             x_data = data[x_key]
 
             # Smooth the data
+            # Handle 'random' models specially: plot flat mean line with ±std shaded region
+            # Use a simple heuristic: if the algorithm name contains "random" or "greedy", treat it as non-learning and plot mean ± std instead of a line plot
+            is_random = ("random" in algo_name.lower() or "greedy" in algo_name.lower())
+
+            # Prepare valid (x,y) pairs
             y_smooth, valid_indices = self._smooth_data(y_data)
             if not valid_indices:
                 continue
 
-            x_filtered = [x_data[i] for i in valid_indices[: len(y_smooth)]]
+            x_raw = [x_data[i] for i in valid_indices]
+            y_raw = [y_data[i] for i in valid_indices]
 
-            # Plot smoothed and raw data
             color = self.colors[idx % len(self.colors)]
             linestyle = self.linestyles[idx % len(self.linestyles)]
 
-            plt.plot(
-                x_filtered,
-                y_smooth,
-                linewidth=2.5,
-                label=algo_name,
-                color=color,
-                linestyle=linestyle,
-            )
+            if is_random:
+                # convert to numpy array, treating None as nan
+                y_arr = np.array(
+                    [np.nan if v is None else v for v in y_raw], dtype=float
+                )
+                if np.all(np.isnan(y_arr)):
+                    continue
+                mean = float(np.nanmean(y_arr))
+                std = float(np.nanstd(y_arr))
+                n_valid = int(np.count_nonzero(~np.isnan(y_arr)))
+                sem = float(std / np.sqrt(n_valid)) if n_valid > 0 else 0.0
+                # extend the flat line to the global x-axis limits if available
+                if x_min_global is not None and x_max_global is not None:
+                    x_line = [x_min_global, x_max_global]
+                else:
+                    x_line = [float(np.min(x_raw)), float(np.max(x_raw))]
 
-            # Plot raw data as light background
-            x_raw = [x_data[i] for i in valid_indices]
-            y_raw = [y_data[i] for i in valid_indices]
-            plt.scatter(x_raw, y_raw, alpha=0.1, s=20, color=color)
+                plt.plot(
+                    x_line,
+                    [mean, mean],
+                    linewidth=2.5,
+                    label=algo_name,
+                    color=color,
+                    linestyle=":",
+                )
+                plt.fill_between(
+                    x_line,
+                    [mean - sem, mean - sem],
+                    [mean + sem, mean + sem],
+                    color=color,
+                    alpha=0.2,
+                )
+            else:
+                # Plot smoothed line
+                x_filtered = [x_data[i] for i in valid_indices[: len(y_smooth)]]
+                plt.plot(
+                    x_filtered,
+                    y_smooth,
+                    linewidth=2.5,
+                    label=algo_name,
+                    color=color,
+                    linestyle=linestyle,
+                )
+
+                # Plot raw data as light background
+                plt.scatter(x_raw, y_raw, alpha=0.01, s=20, color=color)
 
         if not has_data:
             print(f"⚠️  No valid data for metric: {metric}")
@@ -224,6 +293,17 @@ class ComparativePlotter:
             "critic_loss",
             "alpha_loss",
         ]
+        # compute global x-axis range across all algorithms for the summary plots
+        x_vals_all = []
+        for data in self.data.values():
+            key = "update" if "update" in data else "episode"
+            x_vals_all.extend([v for v in data.get(key, []) if v is not None])
+        if x_vals_all:
+            x_min_global = float(min(x_vals_all))
+            x_max_global = float(max(x_vals_all))
+        else:
+            x_min_global = None
+            x_max_global = None
 
         for ax_idx, metric in enumerate(summary_metrics):
             ax = axes[ax_idx]
@@ -241,24 +321,58 @@ class ComparativePlotter:
                 x_key = "update" if "update" in data else "episode"
                 x_data = data[x_key]
 
-                # Smooth the data
+                # Use a simple heuristic: if the algorithm name contains "random" or "greedy", treat it as non-learning and plot mean ± std instead of a line plot
+                is_random = ("random" in algo_name.lower() or "greedy" in algo_name.lower())
+
                 y_smooth, valid_indices = self._smooth_data(y_data)
                 if not valid_indices:
                     continue
 
-                x_filtered = [x_data[i] for i in valid_indices[: len(y_smooth)]]
+                x_raw = [x_data[i] for i in valid_indices]
+                y_raw = [y_data[i] for i in valid_indices]
 
                 color = self.colors[idx % len(self.colors)]
                 linestyle = self.linestyles[idx % len(self.linestyles)]
 
-                ax.plot(
-                    x_filtered,
-                    y_smooth,
-                    linewidth=2,
-                    label=algo_name,
-                    color=color,
-                    linestyle=linestyle,
-                )
+                if is_random:
+                    y_arr = np.array([np.nan if v is None else v for v in y_raw], dtype=float)
+                    if np.all(np.isnan(y_arr)):
+                        continue
+                    mean = float(np.nanmean(y_arr))
+                    std = float(np.nanstd(y_arr))
+                    n_valid = int(np.count_nonzero(~np.isnan(y_arr)))
+                    sem = float(std / np.sqrt(n_valid)) if n_valid > 0 else 0.0
+                    # extend to global x-axis limits if computed
+                    if "x_min_global" in locals() and x_min_global is not None:
+                        x_line = [x_min_global, x_max_global]
+                    else:
+                        x_line = [float(np.min(x_raw)), float(np.max(x_raw))]
+
+                    ax.plot(
+                        x_line,
+                        [mean, mean],
+                        linewidth=2,
+                        label=algo_name,
+                        color=color,
+                        linestyle=":",
+                    )
+                    ax.fill_between(
+                        x_line,
+                        [mean - sem, mean - sem],
+                        [mean + sem, mean + sem],
+                        color=color,
+                        alpha=0.2,
+                    )
+                else:
+                    x_filtered = [x_data[i] for i in valid_indices[: len(y_smooth)]]
+                    ax.plot(
+                        x_filtered,
+                        y_smooth,
+                        linewidth=2,
+                        label=algo_name,
+                        color=color,
+                        linestyle=linestyle,
+                    )
 
             if has_data:
                 x_label = list(self.data.values())[0]["x_label"]
@@ -287,27 +401,38 @@ class ComparativePlotter:
         print(f"✅ Saved {output_path}")
 
 
-def compare_algorithms(log_dirs: List[str], algorithm_names: List[str], output_dir: str, smoothing_window: int = 5) -> None:
+def compare_algorithms(
+    log_dirs: List[str],
+    algorithm_names: List[str],
+    num_uavs: List[int],
+    output_dir: str,
+    smoothing_window: int = 5,
+) -> None:
     """Convenience function to compare multiple algorithm runs.
 
     Args:
         log_dirs: List of directories containing log files
         algorithm_names: List of algorithm names (must match log_dirs length)
+        num_uavs: List of UAV counts for each run (must match log_dirs length)
         output_dir: Directory to save comparison plots
         smoothing_window: Window size for moving average smoothing
     """
-    if len(log_dirs) != len(algorithm_names):
-        print("❌ Number of log directories must match number of algorithm names")
+    if len(log_dirs) != len(algorithm_names) or len(log_dirs) != len(num_uavs):
+        print("❌ Number of log directories, algorithm names, and num_uavs must match")
+        return
+
+    if any(n <= 0 for n in num_uavs):
+        print("❌ All num_uavs values must be positive integers")
         return
 
     plotter = ComparativePlotter(smoothing_window=smoothing_window)
 
-    for log_dir, algo_name in zip(log_dirs, algorithm_names):
+    for log_dir, algo_name, run_num_uavs in zip(log_dirs, algorithm_names, num_uavs):
         if not os.path.isdir(log_dir):
             print(f"❌ Directory not found: {log_dir}")
             continue
 
-        plotter.load_run(log_dir, algo_name)
+        plotter.load_run(log_dir, algo_name, run_num_uavs)
 
     if plotter.data:
         plotter.plot_all_comparisons(output_dir)
