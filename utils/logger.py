@@ -11,7 +11,8 @@ class Log:
         self.energies: list[float] = []
         self.fairness_scores: list[float] = []
         self.offline_rates: list[float] = []
-        # Training losses (optional, may be empty for random baseline)
+        self.chrs: list[float] = []
+        # Training losses (optional, may be empty for baselines)
         self.actor_losses: list[float | None] = []
         self.critic_losses: list[float | None] = []
         self.entropy_losses: list[float | None] = []
@@ -24,6 +25,7 @@ class Log:
         energy: float,
         fairness: float,
         offline_rate: float,
+        chr: float,
         *,
         actor_loss: float | None = None,
         critic_loss: float | None = None,
@@ -39,6 +41,7 @@ class Log:
         self.energies.append(energy)
         self.fairness_scores.append(fairness)
         self.offline_rates.append(offline_rate)
+        self.chrs.append(chr)
 
         self.actor_losses.append(actor_loss)
         self.critic_losses.append(critic_loss)
@@ -92,12 +95,14 @@ class Logger:
         energies_slice: np.ndarray = np.array(log.energies[-log_freq:])
         fairness_slice: np.ndarray = np.array(log.fairness_scores[-log_freq:])
         offline_slice: np.ndarray = np.array(log.offline_rates[-log_freq:])
+        chr_slice: np.ndarray = np.array(log.chrs[-log_freq:])
 
         reward_avg: float = float(np.mean(rewards_slice))
         latency_avg: float = float(np.mean(latencies_slice))
         energy_avg: float = float(np.mean(energies_slice))
         fairness_avg: float = float(np.mean(fairness_slice))
         offline_avg: float = float(np.mean(offline_slice))
+        chr_avg: float = float(np.mean(chr_slice))
 
         # Prepare loss averages from the Log object if available; prefer explicit `losses` dict when provided
         def _safe_mean(lst: list) -> float | None:
@@ -141,21 +146,13 @@ class Logger:
 
         loss_str = " | ".join(loss_parts) + " | " if loss_parts else ""
 
-        log_msg: str = f"🔄 Episode {progress_step} | " f"Total Reward: {reward_avg:.3f} | " f"Total Latency: {latency_avg:.3f} | " f"Total Energy: {energy_avg:.3f} | " f"Final Fairness: {fairness_avg:.3f} | " f"Offline Rate: {offline_avg:.3f} | " + loss_str + f"Elapsed Time: {elapsed_time:.2f}s\n"
+        log_msg: str = f"🔄 Episode {progress_step} | " f"Total Reward: {reward_avg:.3f} | " f"Total Latency: {latency_avg:.3f} | " f"Total Energy: {energy_avg:.3f} | " f"Final Fairness: {fairness_avg:.3f} | " f"Offline Rate: {offline_avg:.3f} | " f"CHR: {chr_avg:.3f} | " + loss_str + f"Elapsed Time: {elapsed_time:.2f}s\n"
 
         with open(self.log_file_path, "a", encoding="utf-8") as f:
             f.write(log_msg)
 
         # Prepare JSON entry, only include keys that are not None
-        data_entry: dict = {
-            "episode": progress_step,
-            "reward": reward_avg,
-            "latency": latency_avg,
-            "energy": energy_avg,
-            "fairness": fairness_avg,
-            "offline_rate": offline_avg,
-            "time": elapsed_time,
-        }
+        data_entry: dict = {"episode": progress_step, "reward": reward_avg, "latency": latency_avg, "energy": energy_avg, "fairness": fairness_avg, "offline_rate": offline_avg, "time": elapsed_time, "chr": chr_avg}
         if actor_avg is not None:
             data_entry["actor_loss"] = actor_avg
         if critic_avg is not None:

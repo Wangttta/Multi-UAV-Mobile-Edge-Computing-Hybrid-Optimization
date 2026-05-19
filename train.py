@@ -35,6 +35,8 @@ def train_on_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: in
     episode_energy: float = 0.0
     episode_fairness: float = 0.0
     episode_offline_rate: float = 0.0
+    episode_hits: int = 0
+    episode_requests: int = 0
 
     obs: list[np.ndarray] = env.reset()
     obs_arr: np.ndarray = np.asarray(obs, dtype=np.float32)
@@ -52,7 +54,7 @@ def train_on_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: in
             raw_actions, log_probs, values = model.get_action_and_value(obs_arr, state)
             actions: np.ndarray = np.clip(raw_actions, -1.0, 1.0)
 
-            next_obs, rewards, (total_latency, total_energy, jfi, offline_rate) = env.step(actions)
+            next_obs, rewards, (total_latency, total_energy, jfi, offline_rate, step_hits, step_requests) = env.step(actions)
             next_state: np.ndarray = np.concatenate(next_obs, axis=0, dtype=np.float32)
             # update_trajectories(env)  # tracking code, comment if not needed
 
@@ -69,11 +71,14 @@ def train_on_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: in
             episode_energy += total_energy
             episode_fairness = jfi
             episode_offline_rate = offline_rate
+            episode_hits += step_hits
+            episode_requests += step_requests
 
             if done:
                 # plot_snapshot(env, episode, episode_step, logger.log_dir, logger.timestamp)  # Final snapshot of episode
                 recent_rewards.append(episode_reward)
-                episode_log.append(episode_reward, episode_latency, episode_energy, episode_fairness, episode_offline_rate)
+                episode_chr: float = episode_hits / episode_requests if episode_requests > 0 else 0.0
+                episode_log.append(episode_reward, episode_latency, episode_energy, episode_fairness, episode_offline_rate, episode_chr)
 
                 # Optuna Pruning Check
                 if trial:
@@ -92,7 +97,7 @@ def train_on_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: in
 
                 episode += 1
                 episode_step = 0
-                episode_reward, episode_latency, episode_energy, episode_fairness, episode_offline_rate = 0.0, 0.0, 0.0, 0.0, 0.0
+                episode_reward, episode_latency, episode_energy, episode_fairness, episode_offline_rate, episode_hits, episode_requests = 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0
                 # reset_trajectories(env)  # tracking code, comment if not needed
                 # plot_snapshot(env, episode, 0, logger.log_dir, logger.timestamp, True)
 
@@ -150,6 +155,8 @@ def train_off_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: i
         episode_energy: float = 0.0
         episode_fairness: float = 0.0
         episode_offline_rate: float = 0.0
+        episode_hits: int = 0
+        episode_requests: int = 0
         # reset_trajectories(env)  # tracking code, comment if not needed
         # plot_snapshot(env, episode, 0, logger.log_dir, logger.timestamp, True)
 
@@ -164,7 +171,7 @@ def train_off_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: i
             else:
                 actions = model.select_actions(obs_arr, exploration=True)
 
-            next_obs, rewards, (total_latency, total_energy, jfi, offline_rate) = env.step(actions)
+            next_obs, rewards, (total_latency, total_energy, jfi, offline_rate, step_hits, step_requests) = env.step(actions)
             next_obs_arr: np.ndarray = np.array(next_obs, dtype=np.float32)
             # update_trajectories(env)  # tracking code, comment if not needed
             done: bool = step >= config.STEPS_PER_EPISODE
@@ -186,10 +193,14 @@ def train_off_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: i
             episode_energy += total_energy
             episode_fairness = jfi
             episode_offline_rate = offline_rate
+            episode_hits += step_hits
+            episode_requests += step_requests
+
             if done:
                 break
 
-        episode_log.append(episode_reward, episode_latency, episode_energy, episode_fairness, episode_offline_rate)
+        episode_chr: float = episode_hits / episode_requests if episode_requests > 0 else 0.0
+        episode_log.append(episode_reward, episode_latency, episode_energy, episode_fairness, episode_offline_rate, episode_chr)
         if episode % config.LOG_FREQ == 0:
             elapsed_time: float = time.time() - start_time
             # Prepare averaged losses for logging
@@ -224,17 +235,22 @@ def train_off_policy(env: Env, model: MARLModel, logger: Logger, num_episodes: i
     return float(np.mean(recent_rewards[-max(1, int(num_episodes * 0.1)) :]))
 
 
-def train_random(env: Env, model: MARLModel, logger: Logger, num_episodes: int) -> float:
+def train_baselines(env: Env, model: MARLModel, logger: Logger, num_episodes: int) -> float:
     start_time: float = time.time()
     episode_log: Log = Log()
 
     for episode in range(1, num_episodes + 1):
-        obs = env.reset()
+        if hasattr(model, "static_positions") and model.static_positions is not None:
+            obs = env.reset(initial_positions=model.static_positions)
+        else:
+            obs = env.reset()
         episode_reward: float = 0.0
         episode_latency: float = 0.0
         episode_energy: float = 0.0
         episode_fairness: float = 0.0
         episode_offline_rate: float = 0.0
+        episode_hits: int = 0
+        episode_requests: int = 0
         # reset_trajectories(env)  # tracking code, comment if not needed
         # plot_snapshot(env, episode, 0, logger.log_dir, logger.timestamp, True)
 
@@ -244,7 +260,7 @@ def train_random(env: Env, model: MARLModel, logger: Logger, num_episodes: int) 
 
             obs_arr: np.ndarray = np.array(obs, dtype=np.float32)
             actions: np.ndarray = model.select_actions(obs_arr, exploration=False)
-            next_obs, rewards, (total_latency, total_energy, jfi, offline_rate) = env.step(actions)
+            next_obs, rewards, (total_latency, total_energy, jfi, offline_rate, step_hits, step_requests) = env.step(actions)
             # update_trajectories(env)  # tracking code, comment if not needed
             done: bool = step >= config.STEPS_PER_EPISODE
             obs = next_obs
@@ -254,12 +270,14 @@ def train_random(env: Env, model: MARLModel, logger: Logger, num_episodes: int) 
             episode_energy += total_energy
             episode_fairness = jfi
             episode_offline_rate = offline_rate
+            episode_hits += step_hits
+            episode_requests += step_requests
             if done:
                 break
-
-        episode_log.append(episode_reward, episode_latency, episode_energy, episode_fairness, episode_offline_rate)
+        episode_chr: float = episode_hits / episode_requests if episode_requests > 0 else 0.0
+        episode_log.append(episode_reward, episode_latency, episode_energy, episode_fairness, episode_offline_rate, episode_chr)
         if episode % config.LOG_FREQ == 0:
             elapsed_time: float = time.time() - start_time
             logger.log_metrics(episode, episode_log, config.LOG_FREQ, elapsed_time, losses=None)
 
-    return 0.0  # Random training does not need tuning
+    return 0.0  # Baseline training does not need tuning

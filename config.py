@@ -1,7 +1,7 @@
 import numpy as np
 
 # Training Parameters
-MODEL: str = "attention_matd3"  # options: 'maddpg', 'matd3', 'mappo', 'masac', 'attention_<model>', 'random'
+MODEL: str = "attention_matd3"  # options: 'maddpg', 'matd3', 'mappo', 'masac', 'attention_<model>', 'random', 'nearest_greedy'
 SEED: int = 42  # random seed for reproducibility
 np.random.seed(SEED)  # set numpy random seed
 STEPS_PER_EPISODE: int = 1000  # total T
@@ -19,6 +19,14 @@ AREA_HEIGHT: int = 700  # Y_max in meters
 TIME_SLOT_DURATION: float = 1.0  # tau in seconds
 UE_MAX_DIST: float = 15.0  # d_max^UE in meters
 UE_MAX_WAIT_TIME: int = 10  # in time slots
+
+USE_HOTSPOTS: bool = False  # using hotspots or not
+NUM_HOTSPOTS: int = 2  # number of hotspots
+HOTSPOT_RADIUS: float = 100.0  # radius of each hotspot in meters
+assert NUM_HOTSPOTS * HOTSPOT_RADIUS * 2 <= min(AREA_WIDTH, AREA_HEIGHT), "Hotspots cannot fit in the area without overlap."
+HOTSPOT_SEPARATION: float = 400.0  # minimum separation between hotspots in meters
+assert HOTSPOT_SEPARATION >= 2 * HOTSPOT_RADIUS, "Hotspot separation must be at least twice the hotspot radius to avoid overlap."
+HOTSPOT_UE_PROB: float = 0.8  # probability that a UE is in a hotspot
 
 # UAV Parameters
 UAV_ALTITUDE: int = 100  # H in meters
@@ -137,3 +145,7 @@ ALPHA_LR: float = 3e-4  # learning rate for the entropy temperature alpha
 ATTN_HIDDEN_DIM: int = 64  # Embedding size for internal attention representations
 ATTN_NUM_HEADS: int = 8  # Number of attention heads
 assert ATTN_HIDDEN_DIM % ATTN_NUM_HEADS == 0, f"ATTN_HIDDEN_DIM ({ATTN_HIDDEN_DIM}) must be divisible by ATTN_NUM_HEADS ({ATTN_NUM_HEADS})"
+
+# Cache Ablation Setting
+CACHE_POLICY: str = "GDSF"  # Options: "GDSF", "LRU", "LFU", "RANDOM", "NO_CACHE"
+ALLOW_COLLABORATION: bool = True  # whether UAVs can collaborate to serve UEs

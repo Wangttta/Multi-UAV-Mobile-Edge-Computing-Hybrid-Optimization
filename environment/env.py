@@ -20,14 +20,23 @@ class Env:
     def ues(self) -> list[UE]:
         return self._ues
 
-    def reset(self) -> list[np.ndarray]:
+    def reset(self, initial_positions: list[np.ndarray] | None = None) -> list[np.ndarray]:
         """Resets the environment to an initial state and returns the initial observations."""
+        if getattr(config, "USE_HOTSPOTS", False):
+            UE.generate_hotspots()  # Randomize hotspot locations on reset
+
         self._ues = [UE(i) for i in range(config.NUM_UES)]
         self._uavs = [UAV(i) for i in range(config.NUM_UAVS)]
+
+        # Apply strict geometric spawn points if provided by the static baseline
+        if initial_positions is not None:
+            for i, uav in enumerate(self._uavs):
+                uav.pos[:2] = initial_positions[i]
+
         self._time_step = 0
         return self._get_obs()
 
-    def step(self, actions: np.ndarray) -> tuple[list[np.ndarray], list[float], tuple[float, float, float, float]]:
+    def step(self, actions: np.ndarray) -> tuple[list[np.ndarray], list[float], tuple[float, float, float, float, int, int]]:
         """Execute one time step of the simulation."""
         self._time_step += 1
 
@@ -91,7 +100,7 @@ class Env:
             ue_states: np.ndarray = np.zeros((config.MAX_ASSOCIATED_UES, config.UE_OBS_DIM), dtype=np.float32)
             ues: list[UE] = sorted(uav.current_covered_ues, key=lambda u: float(np.linalg.norm(uav.pos[:2] - u.pos[:2])))[: config.MAX_ASSOCIATED_UES]
             for i, ue in enumerate(ues):
-                delta_pos: np.ndarray = (ue.pos[:2] - uav.pos[:2]) / config.AREA_WIDTH
+                delta_pos: np.ndarray = (ue.pos[:2] - uav.pos[:2]) / np.array([config.AREA_WIDTH, config.AREA_HEIGHT], dtype=np.float32)
                 req_type, req_size, req_id = ue.current_request
                 norm_type: float = float(req_type) / 2.0  # assuming 3 types: 0,1,2
                 norm_id: float = float(req_id) / float(config.NUM_FILES)
@@ -171,7 +180,7 @@ class Env:
             best_uav.current_covered_ues.append(ue)
             ue.assigned = True
 
-    def _get_rewards_and_metrics(self) -> tuple[list[float], tuple[float, float, float, float]]:
+    def _get_rewards_and_metrics(self) -> tuple[list[float], tuple[float, float, float, float, int, int]]:
         """Returns the reward and other metrics."""
         total_latency: float = sum(ue.latency_current_request if ue.assigned else config.NON_SERVED_LATENCY_PENALTY for ue in self._ues)
         total_energy: float = sum(uav.energy for uav in self._uavs)
@@ -188,10 +197,15 @@ class Env:
         r_offline: float = config.ALPHA_4 * np.log(1.0 + offline_rate)
         reward: float = r_fairness - r_latency - r_energy - r_offline
         rewards: list[float] = [reward] * config.NUM_UAVS
+
         for uav in self._uavs:
             if uav.collision_violation:
                 rewards[uav.id] -= config.COLLISION_PENALTY
             if uav.boundary_violation:
                 rewards[uav.id] -= config.BOUNDARY_PENALTY
         rewards = [r * config.REWARD_SCALING_FACTOR for r in rewards]
-        return rewards, (total_latency, total_energy, jfi, offline_rate)
+
+        step_hits: int = sum(uav.cache_hits_step for uav in self._uavs)
+        step_reqs: int = sum(uav.total_reqs_step for uav in self._uavs)
+
+        return rewards, (total_latency, total_energy, jfi, offline_rate, step_hits, step_reqs)

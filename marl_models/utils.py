@@ -8,6 +8,9 @@ from marl_models.attention_matd3.attention_matd3 import AttentionMATD3
 from marl_models.attention_mappo.attention_mappo import AttentionMAPPO
 from marl_models.attention_masac.attention_masac import AttentionMASAC
 from marl_models.random_baseline.random_model import RandomModel
+from marl_models.static_baseline.static_model import StaticModel
+from marl_models.nearest_greedy_baseline.nearest_greedy_model import NearestGreedyModel
+from marl_models.uncoordinated_greedy_baseline.uncoordinated_greedy_model import UncoordinatedGreedyModel
 import config
 import torch
 import os
@@ -46,6 +49,12 @@ def get_model(model_name: str) -> MARLModel:
         return AttentionMASAC(model_name=model_name, num_agents=config.NUM_UAVS, obs_dim=config.OBS_DIM_SINGLE, action_dim=config.ACTION_DIM, device=device)
     elif model_name == "random":
         return RandomModel(model_name=model_name, num_agents=config.NUM_UAVS, obs_dim=config.OBS_DIM_SINGLE, action_dim=config.ACTION_DIM, device=device)
+    elif model_name == "static":
+        return StaticModel(model_name=model_name, num_agents=config.NUM_UAVS, obs_dim=config.OBS_DIM_SINGLE, action_dim=config.ACTION_DIM, device=device)
+    elif model_name == "nearest_greedy":
+        return NearestGreedyModel(model_name=model_name, num_agents=config.NUM_UAVS, obs_dim=config.OBS_DIM_SINGLE, action_dim=config.ACTION_DIM, device=device)
+    elif model_name == "uncoordinated_greedy":
+        return UncoordinatedGreedyModel(model_name=model_name, num_agents=config.NUM_UAVS, obs_dim=config.OBS_DIM_SINGLE, action_dim=config.ACTION_DIM, device=device)
     else:
         raise ValueError(f"Unknown model type: {model_name}.")
 
